@@ -3,9 +3,10 @@ import { ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, S
 import type { Doc, ProjectMeta } from '../../engine/types'
 import { DEVICE_PRESETS } from '../../engine/types'
 import { loginTemplate, newDoc, parseProject, serializeProject, statusBarEls, uid } from '../../engine/doc'
-import { deleteProject, friendlyDbError, getPref, listProjects, loadDoc, saveDoc, setPref } from '../../database/db'
+import { deleteProject, friendlyDbError, listProjects, loadDoc, saveDoc, setPref } from '../../database/db'
 import { saveText, pickFile } from '../../services/files'
 import { useBackHandler } from '../../services/back'
+import { LogoMark } from '../brand/Logo'
 import { ColorField, Field, Num, Section, Seg, Stepper, Toggle } from '../inspector/controls'
 
 type Sort = 'updated' | 'name' | 'created'
@@ -32,8 +33,6 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [dialog, setDialog] = useState<null | 'new' | 'settings'>(null)
   const [msg, setMsg] = useState('')
-  const [usage, setUsage] = useState('')
-  const [lastBackup, setLastBackup] = useState<number | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -42,13 +41,6 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
     } catch (e) {
       setMsg(friendlyDbError(e))
     }
-    try {
-      const est = await navigator.storage?.estimate?.()
-      if (est?.usage != null) setUsage(`${(est.usage / 1048576).toFixed(1)} MB used`)
-    } catch {
-      /* estimate unsupported */
-    }
-    setLastBackup(await getPref<number | null>('last-backup', null))
   }, [])
   useEffect(() => {
     void refresh()
@@ -92,9 +84,6 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
   const exportOne = async (p: ProjectMeta) => {
     const { doc } = await loadDoc(p.id)
     await saveText(`${p.name.replace(/[^a-z0-9-_]+/gi, '_')}.tuika.json`, serializeProject(doc), 'application/json')
-    const t = Date.now()
-    await setPref('last-backup', t)
-    setLastBackup(t)
   }
   const remove = async (p: ProjectMeta) => {
     if (!window.confirm(`Delete "${p.name}"? This cannot be undone. Tip: export a backup first.`)) return
@@ -122,9 +111,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
     <div className="home">
       <header className="hhead">
         <div className="brand">
-          <span className="logo" aria-hidden>
-            T
-          </span>
+          <LogoMark variant="ring" size={46} />
           <div>
             <h1>Tuika</h1>
             <p>UI/UX design studio</p>
@@ -243,11 +230,6 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
           </>
         )}
       </main>
-
-      <footer className="hfoot">
-        <span>{usage || 'Stored on this device'}</span>
-        <span>{lastBackup ? `Backup ${ago(lastBackup)}` : 'No backup yet'}</span>
-      </footer>
 
       {dialog === 'new' && <NewProject onClose={closeDialog} onCreate={(d) => onOpen(d, [])} />}
       {dialog === 'settings' && (

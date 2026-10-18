@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Tuika UI/UX',
   webDir: 'dist',
   android: { allowMixedContent: false },
+  plugins: { StatusBar: { backgroundColor: '#FFFFFF', style: 'LIGHT', overlaysWebView: false } },
 }
 
 export default config

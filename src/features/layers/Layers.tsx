@@ -20,21 +20,39 @@ export default function Layers() {
     <div className="layers">
       <div className="artboard-tabs" role="tablist" aria-label="Artboards">
         {doc.artboards.map((a) => (
-          <button key={a.id} role="tab" aria-selected={a.id === ab.id} className={'chip' + (a.id === ab.id ? ' on' : '')} onClick={() => st.select(a.id, [])}>
+          <button
+            key={a.id}
+            role="tab"
+            aria-selected={a.id === ab.id}
+            className={'chip' + (a.id === ab.id ? ' on' : '')}
+            onClick={() => {
+              st.select(a.id, [])
+              window.dispatchEvent(new CustomEvent('tuika-focus', { detail: a.id }))
+            }}
+          >
             {a.name}
           </button>
         ))}
-        <button className="chip plus" aria-label="Add artboard" onClick={() => st.addArtboard()}>
+        <button
+          className="chip plus"
+          aria-label="Add artboard"
+          onClick={() => {
+            const id = st.addArtboard()
+            if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id }))
+          }}
+        >
           <Plus size={14} />
         </button>
       </div>
 
-      <div className="searchbar">
-        <label className="search">
+      {ab.els.length > 6 && (
+        <label className="search spaced">
           <Search size={16} />
           <input aria-label="Search layers" placeholder="Search layers" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
-        <Seg label="Selection mode" value={multi ? 'multi' : 'one'} onChange={(v) => setMulti(v === 'multi')} options={[{ v: 'one', label: 'Single' }, { v: 'multi', label: 'Multi' }]} />
+      )}
+      <div className="spaced">
+        <Seg label="Selection mode" value={multi ? 'multi' : 'one'} onChange={(v) => setMulti(v === 'multi')} options={[{ v: 'one', label: 'Select one' }, { v: 'multi', label: 'Select many' }]} />
       </div>
 
       {list.length === 0 && <div className="empty small">{ab.els.length ? 'No layers match' : 'No layers yet. Use the toolbar to add some.'}</div>}

@@ -75,9 +75,66 @@ export default function CanvasView() {
   const [size, setSize] = useState({ w: 320, h: 480 })
   const [view, setView] = useState<View>({ x: 16, y: 40, s: 0.6 })
   const viewRef = useRef(view)
-  viewRef.current = view
+  const rafRef = useRef(0)
+  const animRef = useRef(0)
   const pinch = useRef<{ d: number; cx: number; cy: number } | null>(null)
-  const pan = useRef<{ x: number; y: number } | null>(null)
+  const pan = useRef<{ x: number; y: number; moved: number } | null>(null)
+
+  // Live view changes go straight to the Konva stage (no React render per pointer move),
+  // then sync to React state once per frame. This keeps panning smooth and jitter-free.
+  const moveView = useCallback((v: View) => {
+    viewRef.current = v
+    const st = stageHandle.stage
+    if (st) {
+      st.position({ x: v.x, y: v.y })
+      st.scale({ x: v.s, y: v.s })
+      st.batchDraw()
+    }
+    if (!rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0
+        setView(viewRef.current)
+      })
+  }, [])
+
+  const animateTo = useCallback(
+    (to: View, animate = true) => {
+      cancelAnimationFrame(animRef.current)
+      const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (!animate || reduce) return moveView(to)
+      const from = { ...viewRef.current }
+      const t0 = performance.now()
+      const step = (now: number) => {
+        const k = Math.min(1, (now - t0) / 220)
+        const e = 1 - Math.pow(1 - k, 3)
+        moveView({ s: from.s + (to.s - from.s) * e, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e })
+        if (k < 1) animRef.current = requestAnimationFrame(step)
+      }
+      animRef.current = requestAnimationFrame(step)
+    },
+    [moveView],
+  )
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(rafRef.current)
+      cancelAnimationFrame(animRef.current)
+    },
+    [],
+  )
+
+  const focusScale = (a: { w: number; h: number }) => clamp(Math.min((size.w - 40) / a.w, (size.h - 76) / a.h), 0.05, 3)
+
+  /** Centre one screen in the viewport (like swiping to a page in Canva). */
+  const focusAb = useCallback(
+    (id: string, animate = true) => {
+      const a = useEditor.getState().doc?.artboards.find((x) => x.id === id)
+      if (!a || size.w < 50) return
+      const s = clamp(Math.min((size.w - 40) / a.w, (size.h - 76) / a.h), 0.05, 3)
+      animateTo({ s, x: (size.w - a.w * s) / 2 - a.x * s, y: (size.h - 30 - a.h * s) / 2 - a.y * s + 10 }, animate)
+    },
+    [size.w, size.h, animateTo],
+  )
 
   const fit = useCallback(() => {
     const d = useEditor.getState().doc
@@ -87,9 +144,9 @@ export default function CanvasView() {
     const maxX = Math.max(...d.artboards.map((a) => a.x + a.w))
     const maxY = Math.max(...d.artboards.map((a) => a.y + a.h))
     const pad = 28
-    const s = clamp(Math.min((size.w - pad * 2) / (maxX - minX), (size.h - pad * 2 - 14) / (maxY - minY)), 0.05, 3)
-    setView({ s, x: (size.w - (maxX - minX) * s) / 2 - minX * s, y: (size.h - (maxY - minY) * s) / 2 - minY * s + 8 })
-  }, [size.w, size.h])
+    const s = clamp(Math.min((size.w - pad * 2) / (maxX - minX), (size.h - pad * 2 - 30) / (maxY - minY)), 0.05, 3)
+    animateTo({ s, x: (size.w - (maxX - minX) * s) / 2 - minX * s, y: (size.h - 30 - (maxY - minY) * s) / 2 - minY * s + 14 })
+  }, [size.w, size.h, animateTo])
 
   useEffect(() => {
     const el = wrap.current
@@ -105,20 +162,25 @@ export default function CanvasView() {
     void (document as any).fonts?.ready?.then(() => stageHandle.stage?.batchDraw())
   }, [])
 
-  // fit once when the doc first opens
+  // when a project opens, centre its first screen
   const fitted = useRef<string>('')
   useEffect(() => {
     if (fitted.current !== doc.id && size.w > 50) {
       fitted.current = doc.id
-      fit()
+      focusAb(doc.artboards[0].id, false)
     }
-  }, [doc.id, size.w, fit])
+  }, [doc.id, doc.artboards, size.w, focusAb])
 
   useEffect(() => {
     const h = () => fit()
+    const f = (e: Event) => focusAb((e as CustomEvent<string>).detail)
     window.addEventListener('tuika-fit', h)
-    return () => window.removeEventListener('tuika-fit', h)
-  }, [fit])
+    window.addEventListener('tuika-focus', f)
+    return () => {
+      window.removeEventListener('tuika-fit', h)
+      window.removeEventListener('tuika-focus', f)
+    }
+  }, [fit, focusAb])
 
   // attach transformer to selected (unlocked) nodes
   useEffect(() => {
@@ -138,7 +200,7 @@ export default function CanvasView() {
     const v = viewRef.current
     const s = clamp(v.s * factor, 0.05, 6)
     const k = s / v.s
-    setView({ s, x: px - (px - v.x) * k, y: py - (py - v.y) * k })
+    moveView({ s, x: px - (px - v.x) * k, y: py - (py - v.y) * k })
   }
 
   const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -146,10 +208,25 @@ export default function CanvasView() {
     const p = stageHandle.stage!.getPointerPosition()
     if (!p) return
     if (e.evt.ctrlKey || e.evt.metaKey) zoomAt(p.x, p.y, e.evt.deltaY < 0 ? 1.08 : 1 / 1.08)
-    else setView((v) => ({ ...v, x: v.x - e.evt.deltaX, y: v.y - e.evt.deltaY }))
+    else {
+      const v = viewRef.current
+      moveView({ ...v, x: v.x - e.evt.deltaX, y: v.y - e.evt.deltaY })
+    }
   }
 
   const touchDist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+
+  const panBy = (x: number, y: number) => {
+    const p = pan.current
+    if (!p) return
+    const dx = x - p.x
+    const dy = y - p.y
+    p.x = x
+    p.y = y
+    p.moved += Math.abs(dx) + Math.abs(dy)
+    const v = viewRef.current
+    moveView({ ...v, x: v.x + dx, y: v.y + dy })
+  }
 
   const onTouchMove = (e: Konva.KonvaEventObject<TouchEvent>) => {
     const t = e.evt.touches
@@ -165,35 +242,57 @@ export default function CanvasView() {
         const v = viewRef.current
         const s = clamp(v.s * (d / last.d), 0.05, 6)
         const k = s / v.s
-        setView({ s, x: cx - (last.cx - v.x) * k, y: cy - (last.cy - v.y) * k })
+        moveView({ s, x: cx - (last.cx - v.x) * k, y: cy - (last.cy - v.y) * k })
       }
       pinch.current = { d, cx, cy }
       pan.current = null
     } else if (t.length === 1 && pan.current) {
-      const p = { x: t[0].clientX, y: t[0].clientY }
-      const dx = p.x - pan.current.x
-      const dy = p.y - pan.current.y
-      pan.current = p
-      setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }))
+      e.evt.preventDefault()
+      panBy(t[0].clientX, t[0].clientY)
     }
   }
 
+  // Swiping on an empty area or on a screen's background pans the workspace; dragging an element moves it.
   const bgDown = (e: Konva.KonvaEventObject<any>) => {
-    if (e.target !== stageHandle.stage) return
-    useEditor.getState().select(useEditor.getState().sel.abId, [])
-    if ('touches' in e.evt && e.evt.touches.length === 1) pan.current = { x: e.evt.touches[0].clientX, y: e.evt.touches[0].clientY }
-    else if (!('touches' in e.evt)) pan.current = { x: (e.evt as MouseEvent).clientX, y: (e.evt as MouseEvent).clientY }
+    const t = e.target
+    const isStage = t === stageHandle.stage
+    if (!isStage && t.name() !== 'abbg') return
+    cancelAnimationFrame(animRef.current)
+    if (isStage) useEditor.getState().select(useEditor.getState().sel.abId, [])
+    const ev = e.evt
+    if ('touches' in ev) {
+      if (ev.touches.length === 1) pan.current = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, moved: 0 }
+    } else pan.current = { x: (ev as MouseEvent).clientX, y: (ev as MouseEvent).clientY, moved: 0 }
   }
-  const onMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!pan.current) return
-    const dx = e.evt.clientX - pan.current.x
-    const dy = e.evt.clientY - pan.current.y
-    pan.current = { x: e.evt.clientX, y: e.evt.clientY }
-    setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }))
+  const onMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => panBy(e.evt.clientX, e.evt.clientY)
+
+  /** After a swipe at "one screen" zoom, glide to the nearest screen so it sits centred. */
+  const snapToNearest = () => {
+    const d = useEditor.getState().doc
+    if (!d || d.artboards.length < 2) return
+    const v = viewRef.current
+    const cx = (size.w / 2 - v.x) / v.s
+    const cy = (size.h / 2 - v.y) / v.s
+    let best = d.artboards[0]
+    let bd = Infinity
+    for (const a of d.artboards) {
+      const dist = Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy)
+      if (dist < bd) {
+        bd = dist
+        best = a
+      }
+    }
+    const fs = focusScale(best)
+    if (v.s < fs * 0.8 || v.s > fs * 1.25) return
+    if (useEditor.getState().sel.abId !== best.id) useEditor.getState().select(best.id, [])
+    focusAb(best.id)
   }
+
   const endGesture = () => {
+    const p = pan.current
     pan.current = null
     pinch.current = null
+    if (p && p.moved > 8) snapToNearest()
   }
 
   const onTransformEnd = () => {
@@ -255,22 +354,22 @@ export default function CanvasView() {
             return (
               <Group key={ab.id} x={ab.x} y={ab.y}>
                 <Text
+                  name="abbg"
                   y={-18 / view.s}
                   text={ab.name + (doc.startId === ab.id ? '  (start)' : '')}
                   fontSize={12 / view.s}
                   fill={active ? '#171717' : '#737373'}
                   fontFamily="Inter, system-ui, sans-serif"
                   onMouseDown={(e) => {
-                    e.cancelBubble = true
                     store().select(ab.id, [])
                   }}
                   onTouchStart={(e) => {
-                    e.cancelBubble = true
                     store().select(ab.id, [])
                   }}
                 />
                 <Rect
                   id={'bg-' + ab.id}
+                  name="abbg"
                   width={ab.w}
                   height={ab.h}
                   fill={ab.bg}
@@ -280,12 +379,10 @@ export default function CanvasView() {
                   stroke={active ? '#171717' : undefined}
                   strokeWidth={active ? 1.5 / view.s : 0}
                   onMouseDown={(e) => {
-                    e.cancelBubble = true
                     store().select(ab.id, [])
                   }}
                   onTouchStart={(e) => {
                     if (e.evt.touches.length > 1) return
-                    e.cancelBubble = true
                     store().select(ab.id, [])
                   }}
                 />
@@ -372,9 +469,26 @@ export default function CanvasView() {
       <div className="zoom-badge" aria-live="polite">
         {Math.round(view.s * 100)}%
       </div>
-      <button className="fit-btn" aria-label="Fit to screen" onClick={fit}>
-        Fit
+      <button className="fit-btn" aria-label="Show all screens" onClick={fit}>
+        All
       </button>
+      {doc.artboards.length > 1 && (
+        <div className="pager" role="tablist" aria-label="Screens">
+          {doc.artboards.map((a) => (
+            <button
+              key={a.id}
+              role="tab"
+              aria-selected={a.id === sel.abId}
+              aria-label={`Go to ${a.name}`}
+              className={'pgdot' + (a.id === sel.abId ? ' on' : '')}
+              onClick={() => {
+                useEditor.getState().select(a.id, [])
+                focusAb(a.id)
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Circle, Download, Frame, Grid3x3, ImagePlus, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, MoveRight, Minus, Play, Redo2, Shapes as ShapesIcon, SlidersHorizontal, Smile, Square, Type, Undo2, X, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
+import { ArrowLeft, Circle, Download, Frame, Grid3x3, ImagePlus, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, MoveRight, Minus, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Smile, Square, Type, Undo2, X, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import type { Sheet } from '../../state/ui'
@@ -23,6 +23,8 @@ function useWide() {
 }
 
 const TITLES: Record<Exclude<Sheet, null>, string> = { props: 'Properties', layers: 'Layers', assets: 'Assets', export: 'Export', more: 'More' }
+
+const SHORT: Record<string, string> = { sel: 'Select', text: 'Text', shape: 'Shapes', icons: 'Icons', img: 'Image', frame: 'Screen', layers: 'Layers', props: 'Style' }
 
 function MoreMenu() {
   const st = useEditor.getState()
@@ -138,6 +140,10 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const content = (s: Exclude<Sheet, null>) =>
     s === 'props' ? <Inspector /> : s === 'layers' ? <Layers /> : s === 'assets' ? <Assets /> : s === 'export' ? <ExportPanel /> : <MoreMenu />
 
+  useEffect(() => {
+    document.querySelector('.dock .dk.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [sheet, shapeMenu])
+
   const statusText = save.status === 'saving' ? 'Saving...' : save.status === 'error' ? 'Save failed' : save.status === 'saved' ? 'All changes saved' : 'Local project'
 
   const dock: { id: string; label: string; I: typeof Square; run: () => void; on?: boolean; dot?: boolean }[] = [
@@ -146,9 +152,9 @@ export default function Editor({ onExit }: { onExit: () => void }) {
     { id: 'shape', label: 'Add shape', I: ShapesIcon, run: () => setShapeMenu((v) => !v), on: shapeMenu },
     { id: 'icons', label: 'Icons', I: Smile, run: () => openAssets('icons'), on: sheet === 'assets' },
     { id: 'img', label: 'Add image', I: ImagePlus, run: () => openAssets('images') },
-    { id: 'frame', label: 'Add artboard', I: Frame, run: () => { setShapeMenu(false); st.addArtboard() } },
+    { id: 'frame', label: 'Add artboard', I: Frame, run: () => { setShapeMenu(false); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
     { id: 'layers', label: 'Layers', I: LayersIcon, run: () => toggle('layers'), on: sheet === 'layers' },
-    { id: 'props', label: 'Properties', I: SlidersHorizontal, run: () => toggle('props'), on: sheet === 'props', dot: selCount > 0 && sheet !== 'props' },
+    { id: 'props', label: 'Properties', I: Paintbrush, run: () => toggle('props'), on: sheet === 'props', dot: selCount > 0 && sheet !== 'props' },
   ]
 
   const shapes = [
@@ -254,9 +260,10 @@ export default function Editor({ onExit }: { onExit: () => void }) {
         <nav className="dock" aria-label="Tools">
           {dock.map(({ id, label, I, run, on, dot }, i) => (
             <span key={id} className="dk-item">
-              {i === 6 && <span className="dk-sep" aria-hidden />}
+              {(i === 5 || i === 6) && <span className="dk-sep" aria-hidden />}
               <button className={'dk' + (on ? ' on' : '') + (dot ? ' dot' : '')} aria-label={label} title={label} aria-pressed={on} onClick={run}>
-                <I size={20} />
+                <I size={20} strokeWidth={1.75} />
+                {on && <span className="dk-label">{SHORT[id]}</span>}
               </button>
             </span>
           ))}

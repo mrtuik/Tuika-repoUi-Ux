@@ -37,6 +37,10 @@ npm run build:web
 npx cap add android && npx cap sync android   # then open android/ in Android Studio
 ```
 
+## Brand
+
+The Tuika logo is the exact PNG in `brand/logo.png` (copied to `public/logo.png`). In the app it is the `LogoMark` component (`variant="ring"` in the home header, `variant="tile"` elsewhere), the web favicon is `public/favicon.png`, and `scripts/make_android_icons.py` builds the Android launcher icons, adaptive icon and splash screens from it during the CI build (step "Apply Tuika icon and splash").
+
 ## Layout
 
 ```
@@ -68,5 +72,5 @@ src/tests       unit + database tests
 - No groups/ungroup, auto-layout, reusable components with overrides, shared-style linking, rulers/guides, drag-and-drop layer reordering (use arrows), per-corner radius, multiple fills, or image cropping.
 - Text uses system fonts only (no bundled font files).
 - Undo history is not kept across app restarts (the document itself is).
-- App icon/splash are Capacitor defaults.
+- 
 - This code was written without being able to install dependencies or run it in the authoring environment. Expect to fix small compile or runtime errors on the first CI run.

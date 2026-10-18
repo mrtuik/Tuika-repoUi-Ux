@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
+import { StatusBar, Style } from '@capacitor/status-bar'
 import Home from './features/projects/Home'
 import Editor from './features/editor/Editor'
 import { useEditor } from './state/editor'
@@ -13,6 +14,13 @@ import type { Doc } from './engine/types'
 function applyTheme(t: string) {
   const dark = t === 'dark' || (t === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0E0E10' : '#FFFFFF')
+  if (Capacitor.isNativePlatform()) {
+    // white status bar with dark icons in light theme, near-black with light icons in dark theme
+    void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
+    void StatusBar.setBackgroundColor({ color: dark ? '#0E0E10' : '#FFFFFF' }).catch(() => {})
+    void StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {})
+  }
 }
 
 export default function App() {

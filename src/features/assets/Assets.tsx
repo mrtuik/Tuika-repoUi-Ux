@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { icons as lucideIcons, Heart, ImagePlus, ScanLine, Search, Plus, X } from 'lucide-react'
+import { icons as lucideIcons, Clock, Heart, ImagePlus, ScanLine, Search, Plus, Trash2, X } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import type { AssetTab } from '../../state/ui'
@@ -83,11 +83,11 @@ function IconOptions({ color, setColor, size, setSize }: { color: string; setCol
 
 function SearchBox({ value, onChange, placeholder, label }: { value: string; onChange: (v: string) => void; placeholder: string; label: string }) {
   return (
-    <label className="search">
-      <Search size={16} />
+    <label className="search card">
+      <Search size={18} />
       <input aria-label={label} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
       {value && (
-        <button className="ic small" aria-label="Clear search" onClick={() => onChange('')}>
+        <button className="clearx" aria-label="Clear search" onClick={(e) => { e.preventDefault(); onChange('') }}>
           <X size={14} />
         </button>
       )}
@@ -144,7 +144,12 @@ function LocalIcons() {
       <IconOptions color={color} setColor={setColor} size={size} setSize={setSize} />
       {recent.length > 0 && !q && !onlyFav && (
         <>
-          <div className="group-label">Recent</div>
+          <div className="sec-row">
+            <div className="group-label">Recent</div>
+            <button className="linkbtn" onClick={() => { setRecent([]); void setPref('icon-recent', []) }}>
+              Clear all
+            </button>
+          </div>
           <div className="icon-grid">
             {recent.slice(0, 8).map((n) => (
               <IconCell key={n} name={n} fav={favs.includes(n)} onUse={() => use(n)} onFav={() => fav(n)} onLib={() => lib(n)} />
@@ -198,7 +203,15 @@ function OnlineIcons() {
   const [color, setColor] = useState('#171717')
   const [size, setSize] = useState(48)
   const [tick, setTick] = useState(0)
+  const [terms, setTerms] = useState<string[]>([])
   const dq = useDebounced(q, 400)
+  useEffect(() => {
+    void getPref<string[]>('online-recent', []).then(setTerms)
+  }, [])
+  const saveTerms = (t: string[]) => {
+    setTerms(t)
+    void setPref('online-recent', t)
+  }
   const ctl = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -226,6 +239,14 @@ function OnlineIcons() {
           })
         setItems(list)
         setState('done')
+        if (list.length > 0) {
+          const t = term.toLowerCase()
+          setTerms((prev) => {
+            const next = [t, ...prev.filter((x) => x !== t)].slice(0, 8)
+            void setPref('online-recent', next)
+            return next
+          })
+        }
       })
       .catch((e) => {
         if (e?.name === 'AbortError') return
@@ -252,7 +273,46 @@ function OnlineIcons() {
     <>
       <SearchBox label="Search online icons" placeholder="Search online icons" value={q} onChange={setQ} />
       <IconOptions color={color} setColor={setColor} size={size} setSize={setSize} />
-      {state === 'idle' && <div className="empty small">Type at least 2 letters to search the web.</div>}
+      {q.trim() === '' && (
+        <>
+          <div className="sec-row">
+            <div className="group-label">Recent searches</div>
+            {terms.length > 0 && (
+              <button className="linkbtn" onClick={() => saveTerms([])}>
+                Clear all
+              </button>
+            )}
+          </div>
+          {terms.length === 0 && <div className="empty small">Nothing yet. Search for an icon below or pick a suggestion.</div>}
+          <div className="rlist">
+            {terms.map((t) => (
+              <div className="rrow" key={t}>
+                <button className="rmain" onClick={() => setQ(t)}>
+                  <span className="rtile">
+                    <Clock size={18} />
+                  </span>
+                  <span className="rtext">
+                    <strong>{t}</strong>
+                    <small>Search icons online</small>
+                  </span>
+                </button>
+                <button className="ic small" aria-label={`Remove ${t}`} onClick={() => saveTerms(terms.filter((x) => x !== t))}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="group-label">Suggestions</div>
+          <div className="chips wrap">
+            {['arrow', 'user', 'home', 'settings', 'cart', 'heart', 'bell', 'camera', 'search'].map((t) => (
+              <button key={t} className="pill" onClick={() => setQ(t)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {q.trim() !== '' && state === 'idle' && <div className="empty small">Type at least 2 letters to search the web.</div>}
       {state === 'loading' && <div className="empty small">Searching...</div>}
       {state === 'error' && (
         <div className="warn">

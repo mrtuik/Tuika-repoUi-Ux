@@ -44,6 +44,12 @@ jobs:
         run: |
           if [ ! -d android ]; then npx cap add android; fi
 
+      - name: Apply Tuika icon and splash
+        continue-on-error: true
+        run: |
+          python3 -m pip install pillow
+          python3 scripts/make_android_icons.py android/app/src/main/res
+
       - name: Sync Capacitor
         run: npx cap sync android
 
