@@ -100,6 +100,11 @@ export default function CanvasView() {
     return () => ro.disconnect()
   }, [])
 
+  // redraw once bundled web fonts are ready so text measures with the real font
+  useEffect(() => {
+    void (document as any).fonts?.ready?.then(() => stageHandle.stage?.batchDraw())
+  }, [])
+
   // fit once when the doc first opens
   const fitted = useRef<string>('')
   useEffect(() => {
@@ -253,7 +258,7 @@ export default function CanvasView() {
                   y={-18 / view.s}
                   text={ab.name + (doc.startId === ab.id ? '  (start)' : '')}
                   fontSize={12 / view.s}
-                  fill={active ? '#2684FF' : '#737373'}
+                  fill={active ? '#171717' : '#737373'}
                   fontFamily="Inter, system-ui, sans-serif"
                   onMouseDown={(e) => {
                     e.cancelBubble = true
@@ -272,7 +277,7 @@ export default function CanvasView() {
                   shadowColor="#000"
                   shadowBlur={10}
                   shadowOpacity={0.14}
-                  stroke={active ? '#2684FF' : undefined}
+                  stroke={active ? '#171717' : undefined}
                   strokeWidth={active ? 1.5 / view.s : 0}
                   onMouseDown={(e) => {
                     e.cancelBubble = true
@@ -300,7 +305,7 @@ export default function CanvasView() {
                       }
                       ctx.strokeShape(shape)
                     }}
-                    stroke="rgba(38,132,255,0.12)"
+                    stroke="rgba(23,23,23,0.10)"
                     strokeWidth={0.5 / view.s}
                   />
                 )}
@@ -351,8 +356,8 @@ export default function CanvasView() {
             ref={trRef}
             rotateEnabled
             keepRatio={false}
-            borderStroke="#2684FF"
-            anchorStroke="#2684FF"
+            borderStroke="#171717"
+            anchorStroke="#171717"
             anchorFill="#FFFFFF"
             anchorSize={14}
             anchorCornerRadius={3}

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, Download, FolderOpen, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload } from 'lucide-react'
+import { ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
 import type { Doc, ProjectMeta } from '../../engine/types'
 import { DEVICE_PRESETS } from '../../engine/types'
 import { loginTemplate, newDoc, parseProject, serializeProject, statusBarEls, uid } from '../../engine/doc'
 import { deleteProject, friendlyDbError, getPref, listProjects, loadDoc, saveDoc, setPref } from '../../database/db'
 import { saveText, pickFile } from '../../services/files'
 import { useBackHandler } from '../../services/back'
+import { ColorField, Field, Num, Section, Seg, Stepper, Toggle } from '../inspector/controls'
 
 type Sort = 'updated' | 'name' | 'created'
 
@@ -17,7 +18,7 @@ interface Props {
 
 function ago(t: number) {
   const m = Math.round((Date.now() - t) / 60000)
-  if (m < 1) return 'just now'
+  if (m < 1) return 'Just now'
   if (m < 60) return `${m} min ago`
   const h = Math.round(m / 60)
   if (h < 24) return `${h} h ago`
@@ -33,6 +34,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
   const [msg, setMsg] = useState('')
   const [usage, setUsage] = useState('')
   const [lastBackup, setLastBackup] = useState<number | null>(null)
+  const [menu, setMenu] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -42,7 +44,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
     }
     try {
       const est = await navigator.storage?.estimate?.()
-      if (est?.usage != null) setUsage(`${(est.usage / 1048576).toFixed(1)} MB used${est.quota ? ` of ${Math.round(est.quota / 1048576)} MB` : ''}`)
+      if (est?.usage != null) setUsage(`${(est.usage / 1048576).toFixed(1)} MB used`)
     } catch {
       /* estimate unsupported */
     }
@@ -53,7 +55,9 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
   }, [refresh])
 
   const closeDialog = useCallback(() => setDialog(null), [])
+  const closeMenu = useCallback(() => setMenu(null), [])
   useBackHandler(dialog !== null, closeDialog)
+  useBackHandler(menu !== null && dialog === null, closeMenu)
 
   const shown = useMemo(() => {
     const f = items.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
@@ -68,7 +72,6 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
       setMsg(e?.message ?? 'Could not open project')
     }
   }
-
   const rename = async (p: ProjectMeta) => {
     const n = window.prompt('Rename project', p.name)
     if (!n?.trim()) return
@@ -105,8 +108,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
       if (f.size > 100 * 1024 * 1024) throw new Error('File is too large')
       const { doc, warnings } = parseProject(await f.text())
       const now = Date.now()
-      const fresh = { ...doc, id: uid(), name: items.some((i) => i.name === doc.name) ? `${doc.name} (restored)` : doc.name, createdAt: now, updatedAt: now }
-      await saveDoc(fresh)
+      await saveDoc({ ...doc, id: uid(), name: items.some((i) => i.name === doc.name) ? `${doc.name} (restored)` : doc.name, createdAt: now, updatedAt: now })
       await refresh()
       setMsg(warnings.length ? `Imported with ${warnings.length} note(s): ${warnings.slice(0, 3).join(' | ')}` : 'Project imported')
     } catch (e: any) {
@@ -114,128 +116,178 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
     }
   }
 
+  const recent = shown.slice(0, 1)[0]
+
   return (
     <div className="home">
       <header className="hhead">
-        <h1>Tuika UI/UX</h1>
-        <button className="ic" aria-label="Import project backup" onClick={() => void importBackup()}>
-          <Upload size={20} />
+        <div className="brand">
+          <span className="logo" aria-hidden>
+            T
+          </span>
+          <div>
+            <h1>Tuika</h1>
+            <p>UI/UX design studio</p>
+          </div>
+        </div>
+        <button className="ic ring" aria-label="Import project backup" onClick={() => void importBackup()}>
+          <Upload size={18} />
         </button>
-        <button className="ic" aria-label="Settings" onClick={() => setDialog('settings')}>
-          <Cog size={20} />
+        <button className="ic ring" aria-label="Settings" onClick={() => setDialog('settings')}>
+          <Cog size={18} />
         </button>
       </header>
-      <div className="hbar">
-        <label className="search">
-          <Search size={16} />
-          <input aria-label="Search projects" placeholder="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
-        <select aria-label="Sort projects" className="txt" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-          <option value="updated">Last modified</option>
-          <option value="name">Name</option>
-          <option value="created">Created</option>
-        </select>
-        <button className="ic" aria-label={view === 'grid' ? 'List view' : 'Grid view'} onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
-          {view === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}
-        </button>
-      </div>
+
       {msg && (
-        <div className="warn" role="alert" onClick={() => setMsg('')}>
-          {msg}
+        <div className="warn mx" role="alert">
+          <span>{msg}</span>
+          <button className="ic small" aria-label="Dismiss message" onClick={() => setMsg('')}>
+            <X size={14} />
+          </button>
         </div>
       )}
-      <main className={'plist ' + view}>
-        {shown.length === 0 && (
-          <div className="empty">
-            {items.length === 0 ? (
-              <>
-                <strong>No projects yet</strong>
-                <p>Create your first project: pick a device size, add shapes, text and icons, link screens and preview the prototype.</p>
-                <button className="big primary" onClick={() => setDialog('new')}>
-                  <Plus size={18} /> New project
-                </button>
-              </>
-            ) : (
-              'No projects match your search'
-            )}
-          </div>
-        )}
-        {shown.map((p) => (
-          <article className="pcard" key={p.id}>
-            <button className="pthumb" aria-label={`Open ${p.name}`} onClick={() => void open(p.id)}>
-              {p.thumb ? <img alt="" src={p.thumb} /> : <FolderOpen size={28} />}
-            </button>
-            <div className="pinfo">
-              <div className="pn">{p.name}</div>
-              <div className="pm">
-                {p.artboards} screen{p.artboards > 1 ? 's' : ''} - {ago(p.updatedAt)}
-              </div>
-              <div className="pact">
-                <button className="ic" aria-label={`Rename ${p.name}`} onClick={() => void rename(p)}>
-                  <Pencil size={15} />
-                </button>
-                <button className="ic" aria-label={`Duplicate ${p.name}`} onClick={() => void duplicate(p)}>
-                  <Copy size={15} />
-                </button>
-                <button className="ic" aria-label={`Export backup of ${p.name}`} onClick={() => void exportOne(p)}>
-                  <Download size={15} />
-                </button>
-                <button className="ic" aria-label={`Delete ${p.name}`} onClick={() => void remove(p)}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
+
+      <main className="hmain">
+        {items.length === 0 ? (
+          <div className="hero">
+            <div className="hero-art" aria-hidden>
+              <span className="a1" />
+              <span className="a2" />
+              <span className="a3" />
             </div>
-          </article>
-        ))}
-      </main>
-      <footer className="hfoot">
-        <span>
-          {usage || 'Local storage'} {lastBackup ? `- last backup ${ago(lastBackup)}` : '- no backup exported yet'}
-        </span>
-      </footer>
-      {items.length > 0 && (
-        <button className="fab" aria-label="New project" onClick={() => setDialog('new')}>
-          <Plus size={24} />
-        </button>
-      )}
-      {dialog === 'new' && <NewProject onClose={closeDialog} onCreate={(d) => onOpen(d, [])} />}
-      {dialog === 'settings' && (
-        <Modal title="Settings" onClose={closeDialog}>
-          <div className="prow">
-            <div className="plabel">Theme</div>
-            <div className="pctl">
-              {['light', 'dark', 'system'].map((t) => (
-                <button
-                  key={t}
-                  className={'mini' + (theme === t ? ' on' : '')}
-                  onClick={() => {
-                    setTheme(t)
-                    void setPref('theme', t)
-                  }}
-                >
-                  {t}
-                </button>
+            <h2>Design your first app screen</h2>
+            <p>Pick a device size, add shapes, text and icons, link screens together and preview the prototype. Everything is saved on this phone.</p>
+            <button className="big primary" onClick={() => setDialog('new')}>
+              <Plus size={18} /> New project
+            </button>
+            <button className="big" onClick={() => void importBackup()}>
+              <Upload size={18} /> Restore from backup
+            </button>
+          </div>
+        ) : (
+          <>
+            <button className="newcard" onClick={() => setDialog('new')}>
+              <span className="plus">
+                <Plus size={20} />
+              </span>
+              <span>
+                <strong>New project</strong>
+                <small>Phone, tablet or custom size</small>
+              </span>
+              <ChevronRight size={18} />
+            </button>
+
+            <div className="hbar">
+              <label className="search">
+                <Search size={16} />
+                <input aria-label="Search projects" placeholder="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
+                {q && (
+                  <button className="ic small" aria-label="Clear search" onClick={() => setQ('')}>
+                    <X size={14} />
+                  </button>
+                )}
+              </label>
+              <button className="ic sq" aria-label={view === 'grid' ? 'Switch to list view' : 'Switch to grid view'} onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
+                {view === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}
+              </button>
+            </div>
+            <Seg<Sort>
+              label="Sort projects"
+              value={sort}
+              onChange={setSort}
+              options={[
+                { v: 'updated', label: 'Recent' },
+                { v: 'name', label: 'Name' },
+                { v: 'created', label: 'Created' },
+              ]}
+            />
+
+            {shown.length === 0 && <div className="empty">No projects match "{q}"</div>}
+            {recent && !q && sort === 'updated' && <div className="group-label">Continue where you left off</div>}
+            <div className={'plist ' + view}>
+              {shown.map((p) => (
+                <article className="pcard" key={p.id}>
+                  <button className="pthumb" aria-label={`Open ${p.name}`} onClick={() => void open(p.id)}>
+                    {p.thumb ? <img alt="" src={p.thumb} /> : <span className="ph">{p.name.slice(0, 1).toUpperCase()}</span>}
+                  </button>
+                  <div className="pinfo">
+                    <div className="prow1">
+                      <div className="pn">{p.name}</div>
+                      <button className="ic small" aria-label={`More for ${p.name}`} aria-expanded={menu === p.id} onClick={() => setMenu(menu === p.id ? null : p.id)}>
+                        {menu === p.id ? <X size={16} /> : <span className="dots">...</span>}
+                      </button>
+                    </div>
+                    <div className="pm">
+                      {p.artboards} screen{p.artboards > 1 ? 's' : ''} - {ago(p.updatedAt)}
+                    </div>
+                    {menu === p.id && (
+                      <div className="pmenu" role="menu">
+                        <button role="menuitem" onClick={() => { setMenu(null); void rename(p) }}>
+                          <Pencil size={15} /> Rename
+                        </button>
+                        <button role="menuitem" onClick={() => { setMenu(null); void duplicate(p) }}>
+                          <Copy size={15} /> Duplicate
+                        </button>
+                        <button role="menuitem" onClick={() => { setMenu(null); void exportOne(p) }}>
+                          <Download size={15} /> Export backup
+                        </button>
+                        <button role="menuitem" className="danger" onClick={() => { setMenu(null); void remove(p) }}>
+                          <Trash2 size={15} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
               ))}
             </div>
-          </div>
-          <div className="hint">
-            <p>Projects are stored on this device (IndexedDB). Nothing is uploaded. Online icon search sends only your search text to api.iconify.design.</p>
-            <p>Not in this version: automatic screenshot-to-layers detection, groups/auto-layout, reusable components with overrides, rulers/guides, JPEG/PNG import of SVG files.</p>
-          </div>
-        </Modal>
+          </>
+        )}
+      </main>
+
+      <footer className="hfoot">
+        <span>{usage || 'Stored on this device'}</span>
+        <span>{lastBackup ? `Backup ${ago(lastBackup)}` : 'No backup yet'}</span>
+      </footer>
+
+      {dialog === 'new' && <NewProject onClose={closeDialog} onCreate={(d) => onOpen(d, [])} />}
+      {dialog === 'settings' && (
+        <Sheet title="Settings" onClose={closeDialog}>
+          <Section title="Appearance">
+            <Seg
+              label="Theme"
+              value={theme}
+              onChange={(t) => {
+                setTheme(t)
+                void setPref('theme', t)
+              }}
+              options={[
+                { v: 'light', label: 'Light' },
+                { v: 'dark', label: 'Dark' },
+                { v: 'system', label: 'System' },
+              ]}
+            />
+          </Section>
+          <Section title="Privacy">
+            <p className="hint flush">Projects are stored on this device (IndexedDB). Nothing is uploaded. Online icon search sends only your search text to api.iconify.design.</p>
+          </Section>
+          <Section title="Not in this version">
+            <p className="hint flush">Automatic screenshot-to-layers detection, groups and auto-layout, reusable components, rulers and guides, image cropping.</p>
+          </Section>
+        </Sheet>
       )}
     </div>
   )
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="modal-back" onClick={onClose}>
-      <div className="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="grab" aria-hidden />
         <div className="sheet-head">
           <strong>{title}</strong>
-          <button className="mini" onClick={onClose}>
-            Close
+          <button className="ic fill" aria-label="Close" onClick={onClose}>
+            <X size={17} />
           </button>
         </div>
         <div className="modal-body">{children}</div>
@@ -285,63 +337,81 @@ function NewProject({ onClose, onCreate }: { onClose: () => void; onCreate: (d: 
   }
 
   return (
-    <Modal title="New project" onClose={onClose}>
+    <Sheet title="New project" onClose={onClose}>
       <div className="props">
-        <div className="prow stack">
-          <div className="plabel">Name</div>
-          <input className="txt wide" aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="prow">
-          <div className="plabel">Device</div>
-          <select className="txt" aria-label="Device preset" value={preset} onChange={(e) => pick(e.target.value)}>
-            {DEVICE_PRESETS.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-                {d.id !== 'custom' ? ` (${d.w}x${d.h})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="prow">
-          <div className="plabel">Size</div>
-          <input className="txt small" aria-label="Width" inputMode="numeric" value={w} onChange={(e) => { setW(Number(e.target.value) || 0); setPreset('custom') }} />
-          <span>x</span>
-          <input className="txt small" aria-label="Height" inputMode="numeric" value={h} onChange={(e) => { setH(Number(e.target.value) || 0); setPreset('custom') }} />
-        </div>
-        <div className="prow">
-          <div className="plabel">Orientation</div>
-          <button className={'mini' + (!land ? ' on' : '')} onClick={() => setLand(false)}>
-            Portrait
-          </button>
-          <button className={'mini' + (land ? ' on' : '')} onClick={() => setLand(true)}>
-            Landscape
-          </button>
-        </div>
-        <div className="prow">
-          <div className="plabel">Background</div>
-          <input type="color" aria-label="Background color" value={bg} onChange={(e) => setBg(e.target.value.toUpperCase())} />
-        </div>
-        <div className="prow">
-          <div className="plabel">Screens</div>
-          <input className="txt small" aria-label="Initial artboard count" inputMode="numeric" value={count} onChange={(e) => setCount(Math.min(12, Math.max(1, Number(e.target.value) || 1)))} />
-        </div>
-        <div className="prow">
-          <div className="plabel">Template</div>
-          <button className={'mini' + (tpl === 'blank' ? ' on' : '')} onClick={() => setTpl('blank')}>
-            Blank
-          </button>
-          <button className={'mini' + (tpl === 'login' ? ' on' : '')} onClick={() => setTpl('login')}>
-            Login screen
-          </button>
-        </div>
-        <label className="prow check">
-          <input type="checkbox" checked={bars} onChange={(e) => setBars(e.target.checked)} /> Add status bar and navigation bar shapes
-        </label>
+        <Section title="Project">
+          <Field label="Name">
+            <input className="txt wide" aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => e.target.select()} />
+          </Field>
+        </Section>
+
+        <Section title="Frame">
+          <Field label="Device">
+            <select className="txt wide" aria-label="Device preset" value={preset} onChange={(e) => pick(e.target.value)}>
+              {DEVICE_PRESETS.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                  {d.id !== 'custom' ? ` (${d.w} x ${d.h})` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="grid2">
+            <Field label="Width">
+              <Num label="Width" value={w} min={100} max={8000} suffix="W" onChange={(v) => { setW(Math.round(v)); setPreset('custom') }} />
+            </Field>
+            <Field label="Height">
+              <Num label="Height" value={h} min={100} max={8000} suffix="H" onChange={(v) => { setH(Math.round(v)); setPreset('custom') }} />
+            </Field>
+          </div>
+          <Field label="Orientation">
+            <Seg
+              label="Orientation"
+              value={land ? 'l' : 'p'}
+              onChange={(v) => setLand(v === 'l')}
+              options={[
+                { v: 'p', label: 'Portrait' },
+                { v: 'l', label: 'Landscape' },
+              ]}
+            />
+          </Field>
+          <div className="field inline">
+            <span className="flabel">Screens</span>
+            <Stepper label="screens" value={count} min={1} max={12} onChange={setCount} />
+          </div>
+        </Section>
+
+        <Section title="Background">
+          <ColorField value={bg} onChange={setBg} swatches={['#FFFFFF', '#F5F5F5', '#171717', '#E5E5E5']} />
+        </Section>
+
+        <Section title="Start from">
+          <div className="tplrow">
+            <button className={'tpl' + (tpl === 'blank' ? ' on' : '')} aria-pressed={tpl === 'blank'} onClick={() => setTpl('blank')}>
+              <span className="tpl-art blank" />
+              Blank
+            </button>
+            <button className={'tpl' + (tpl === 'login' ? ' on' : '')} aria-pressed={tpl === 'login'} onClick={() => setTpl('login')}>
+              <span className="tpl-art login">
+                <i />
+                <i />
+                <i />
+                <b />
+              </span>
+              Login screen
+            </button>
+          </div>
+          <div className="field inline">
+            <span className="flabel">Status and navigation bars</span>
+            <Toggle label="Add status bar and navigation bar shapes" on={bars} onChange={setBars} />
+          </div>
+        </Section>
+
         {err && <div className="warn">{err}</div>}
         <button className="big primary" onClick={() => void create()}>
           Create project
         </button>
       </div>
-    </Modal>
+    </Sheet>
   )
 }

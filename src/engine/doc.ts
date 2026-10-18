@@ -38,8 +38,8 @@ export function newEl(type: ElType, patch: Partial<El> = {}): El {
     radius: 0,
     shadow: defaultShadow(),
   }
-  if (type === 'rect') Object.assign(base, { w: 160, h: 96, fill: '#2684FF', radius: 12 })
-  if (type === 'ellipse') Object.assign(base, { w: 120, h: 120, fill: '#2684FF' })
+  if (type === 'rect') Object.assign(base, { w: 160, h: 96, fill: '#171717', radius: 12 })
+  if (type === 'ellipse') Object.assign(base, { w: 120, h: 120, fill: '#171717' })
   if (type === 'text')
     Object.assign(base, {
       w: 200,
@@ -77,7 +77,7 @@ export function newDoc(name: string, w: number, h: number, bg = '#FFFFFF', count
     name,
     artboards,
     startId: artboards[0].id,
-    palette: ['#171717', '#FFFFFF', '#2684FF', '#F97316', '#22C55E'],
+    palette: ['#171717', '#FFFFFF', '#737373', '#E5E5E5', '#F97316'],
     assets: [],
     createdAt: now,
     updatedAt: now,
@@ -103,7 +103,7 @@ export function loginTemplate(ab: Artboard) {
     newEl('text', { name: 'Email label', x: cx + 16, y: 247, w: w - 32, h: 22, text: 'Email', fontSize: 16, fill: '#737373', fontWeight: 400 }),
     newEl('rect', { name: 'Password field', x: cx, y: 300, w, h: 52, fill: '#F5F5F5', radius: 12 }),
     newEl('text', { name: 'Password label', x: cx + 16, y: 315, w: w - 32, h: 22, text: 'Password', fontSize: 16, fill: '#737373', fontWeight: 400 }),
-    newEl('rect', { name: 'Button', x: cx, y: 384, w, h: 52, fill: '#2684FF', radius: 12 }),
+    newEl('rect', { name: 'Button', x: cx, y: 384, w, h: 52, fill: '#171717', radius: 12 }),
     newEl('text', { name: 'Button label', x: cx, y: 399, w, h: 22, text: 'Sign in', fontSize: 16, fill: '#FFFFFF', align: 'center', fontWeight: 600 }),
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Circle, Copy, Eye, EyeOff, Image as ImageIcon, Lock, Minus, MoveRight, Shapes, Square, Trash2, Type, Unlock } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Circle, Copy, Eye, EyeOff, Image as ImageIcon, Lock, Minus, MoveRight, Plus, Search, Shapes, Square, Trash2, Type, Unlock } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import type { ElType } from '../../engine/types'
+import { Seg } from '../inspector/controls'
 
 const ICON: Record<ElType, typeof Square> = { rect: Square, ellipse: Circle, text: Type, image: ImageIcon, icon: Shapes, line: Minus, arrow: MoveRight }
 
@@ -23,26 +24,27 @@ export default function Layers() {
             {a.name}
           </button>
         ))}
-        <button className="chip" aria-label="Add artboard" onClick={() => st.addArtboard()}>
-          +
+        <button className="chip plus" aria-label="Add artboard" onClick={() => st.addArtboard()}>
+          <Plus size={14} />
         </button>
       </div>
-      <div className="layer-tools">
-        <input className="txt" aria-label="Search layers" placeholder="Search layers" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className={'mini' + (multi ? ' on' : '')} aria-pressed={multi} onClick={() => setMulti(!multi)}>
-          Multi
-        </button>
-        <button className="mini" disabled={sel.elIds.length === 0} onClick={() => st.select(ab.id, [])}>
-          Clear
-        </button>
+
+      <div className="searchbar">
+        <label className="search">
+          <Search size={16} />
+          <input aria-label="Search layers" placeholder="Search layers" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+        <Seg label="Selection mode" value={multi ? 'multi' : 'one'} onChange={(v) => setMulti(v === 'multi')} options={[{ v: 'one', label: 'Single' }, { v: 'multi', label: 'Multi' }]} />
       </div>
+
       {list.length === 0 && <div className="empty small">{ab.els.length ? 'No layers match' : 'No layers yet. Use the toolbar to add some.'}</div>}
+
       <ul className="layer-list">
         {list.map((e) => {
           const I = ICON[e.type]
           const on = sel.elIds.includes(e.id) && sel.abId === ab.id
           return (
-            <li key={e.id} className={'layer' + (on ? ' on' : '')}>
+            <li key={e.id} className={'layer' + (on ? ' on' : '') + (e.visible ? '' : ' dim')}>
               <button
                 className="layer-main"
                 aria-label={`Select ${e.name}`}
@@ -53,7 +55,9 @@ export default function Layers() {
                 }}
                 onDoubleClick={() => setEditing(e.id)}
               >
-                <I size={16} />
+                <span className="lico">
+                  <I size={16} />
+                </span>
                 {editing === e.id ? (
                   <input
                     autoFocus
@@ -71,39 +75,36 @@ export default function Layers() {
                   <span className="lname">{e.name}</span>
                 )}
               </button>
-              <button className="ic" aria-label={e.visible ? 'Hide layer' : 'Show layer'} onClick={() => st.patchEl(ab.id, e.id, { visible: !e.visible })}>
+              <button className="ic small" aria-label={e.visible ? 'Hide layer' : 'Show layer'} onClick={() => st.patchEl(ab.id, e.id, { visible: !e.visible })}>
                 {e.visible ? <Eye size={16} /> : <EyeOff size={16} />}
               </button>
-              <button className="ic" aria-label={e.locked ? 'Unlock layer' : 'Lock layer'} onClick={() => st.patchEl(ab.id, e.id, { locked: !e.locked })}>
+              <button className="ic small" aria-label={e.locked ? 'Unlock layer' : 'Lock layer'} onClick={() => st.patchEl(ab.id, e.id, { locked: !e.locked })}>
                 {e.locked ? <Lock size={16} /> : <Unlock size={16} />}
               </button>
-              {on && (
-                <>
-                  <button className="ic" aria-label="Bring forward" onClick={() => st.reorder('up')}>
-                    <ArrowUp size={16} />
-                  </button>
-                  <button className="ic" aria-label="Send backward" onClick={() => st.reorder('down')}>
-                    <ArrowDown size={16} />
-                  </button>
-                  <button className="ic" aria-label="Duplicate layer" onClick={() => st.duplicateSel()}>
-                    <Copy size={16} />
-                  </button>
-                  <button className="ic" aria-label="Delete layer" onClick={() => st.removeSel()}>
-                    <Trash2 size={16} />
-                  </button>
-                </>
-              )}
             </li>
           )
         })}
       </ul>
+
       {sel.elIds.length > 0 && (
-        <div className="layer-tools">
-          <button className="mini" onClick={() => st.reorder('front')}>
-            To front
+        <div className="actionbar" role="toolbar" aria-label="Layer actions">
+          <button className="ic" aria-label="Bring forward" onClick={() => st.reorder('up')}>
+            <ArrowUp size={17} />
           </button>
-          <button className="mini" onClick={() => st.reorder('back')}>
-            To back
+          <button className="ic" aria-label="Send backward" onClick={() => st.reorder('down')}>
+            <ArrowDown size={17} />
+          </button>
+          <button className="ic" aria-label="Bring to front" onClick={() => st.reorder('front')}>
+            <ChevronsUp size={17} />
+          </button>
+          <button className="ic" aria-label="Send to back" onClick={() => st.reorder('back')}>
+            <ChevronsDown size={17} />
+          </button>
+          <button className="ic" aria-label="Duplicate" onClick={() => st.duplicateSel()}>
+            <Copy size={17} />
+          </button>
+          <button className="ic danger" aria-label="Delete" onClick={() => st.removeSel()}>
+            <Trash2 size={17} />
           </button>
         </div>
       )}

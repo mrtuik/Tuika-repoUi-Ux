@@ -1,6 +1,6 @@
 # Tuika UI/UX
 
-Mobile-first design studio: React + TypeScript + Konva canvas, Zustand store with undo/redo, Dexie (IndexedDB) storage, Capacitor Android shell, GitHub Actions APK build.
+Mobile-first design studio (neutral black-and-white UI, Inter/Poppins/Playfair/JetBrains Mono fonts bundled offline via @fontsource): React + TypeScript + Konva canvas, Zustand store with undo/redo, Dexie (IndexedDB) storage, Capacitor Android shell, GitHub Actions APK build.
 
 ## Get the APK (no computer needed)
 

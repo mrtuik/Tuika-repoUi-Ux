@@ -6,6 +6,7 @@ import { exportArtboardSvg } from '../../services/svg'
 import { saveDataUrl, saveText } from '../../services/files'
 import { serializeProject } from '../../engine/doc'
 import { flushSave } from '../../database/persistence'
+import { Field, Section, Seg, Toggle } from '../inspector/controls'
 
 const safe = (s: string) => s.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 40) || 'design'
 
@@ -49,52 +50,57 @@ export default function ExportPanel() {
 
   return (
     <div className="props">
-      <div className="prow">
-        <div className="plabel">Format</div>
-        <div className="pctl">
-          {(['png', 'jpeg', 'svg'] as const).map((f) => (
-            <button key={f} className={'mini' + (fmt === f ? ' on' : '')} onClick={() => setFmt(f)}>
-              {f.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
-      {fmt !== 'svg' && (
-        <div className="prow">
-          <div className="plabel">Scale</div>
-          <div className="pctl">
-            {[1, 2, 3, 4].map((n) => (
-              <button key={n} className={'mini' + (scale === n ? ' on' : '')} onClick={() => setScale(n)}>
-                {n}x
-              </button>
-            ))}
+      <Section title="Image or vector">
+        <Field label="Format">
+          <Seg
+            label="Export format"
+            value={fmt}
+            onChange={setFmt}
+            options={[
+              { v: 'png', label: 'PNG' },
+              { v: 'jpeg', label: 'JPEG' },
+              { v: 'svg', label: 'SVG' },
+            ]}
+          />
+        </Field>
+        {fmt !== 'svg' && (
+          <Field label="Scale">
+            <Seg
+              label="Export scale"
+              value={scale}
+              onChange={setScale}
+              options={[1, 2, 3, 4].map((n) => ({ v: n, label: `${n}x` }))}
+            />
+          </Field>
+        )}
+        {fmt === 'png' && (
+          <div className="field inline">
+            <span className="flabel">Transparent background</span>
+            <Toggle label="Transparent background" on={transparent} onChange={setTransparent} />
           </div>
+        )}
+        <div className="field inline">
+          <span className="flabel">All artboards ({doc.artboards.length})</span>
+          <Toggle label="Export all artboards" on={all} onChange={setAll} />
         </div>
-      )}
-      {fmt === 'png' && (
-        <label className="prow check">
-          <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background
-        </label>
-      )}
-      <label className="prow check">
-        <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> All artboards ({doc.artboards.length})
-      </label>
-      <button className="big primary" disabled={busy} onClick={() => void run()}>
-        {busy ? 'Exporting...' : all ? 'Export all artboards' : 'Export current artboard'}
-      </button>
-      {warn.length > 0 && <div className="warn">SVG notes: {warn.join('; ')}</div>}
-      <div className="hint">On Android the share sheet opens so you can save to Files, Drive, etc.</div>
-      <div className="divider" />
-      <button
-        className="big"
-        onClick={async () => {
-          await flushSave(undefined, true)
-          await saveText(`${safe(doc.name)}.tuika.json`, serializeProject(useEditor.getState().doc!), 'application/json')
-          say('Backup exported')
-        }}
-      >
-        Export project backup (.tuika.json)
-      </button>
+        <button className="big primary" disabled={busy} onClick={() => void run()}>
+          {busy ? 'Exporting...' : all ? 'Export all artboards' : 'Export current artboard'}
+        </button>
+        {warn.length > 0 && <div className="warn">SVG notes: {warn.join('; ')}</div>}
+        <div className="hint flush">On Android the share sheet opens so you can save to Files, Drive and more.</div>
+      </Section>
+      <Section title="Project backup">
+        <button
+          className="big"
+          onClick={async () => {
+            await flushSave(undefined, true)
+            await saveText(`${safe(doc.name)}.tuika.json`, serializeProject(useEditor.getState().doc!), 'application/json')
+            say('Backup exported')
+          }}
+        >
+          Export backup (.tuika.json)
+        </button>
+      </Section>
     </div>
   )
 }

@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { icons as lucideIcons } from 'lucide-react'
-import { Heart, ImagePlus, ScanLine } from 'lucide-react'
+import { icons as lucideIcons, Heart, ImagePlus, ScanLine, Search, Plus, X } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
+import type { AssetTab } from '../../state/ui'
 import { getPref, setPref } from '../../database/db'
 import { uid } from '../../engine/doc'
 import { pickFile, readImage } from '../../services/files'
 import { sanitizeSvg } from '../../services/svg'
+import { ColorField, Seg } from '../inspector/controls'
 
-type Tab = 'icons' | 'online' | 'library' | 'images'
 const ICON_NAMES = Object.keys(lucideIcons)
-
 const toKebab = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
 
 function lucideSvg(name: string): string | null {
   const C = (lucideIcons as any)[name]
   if (!C) return null
-  const markup = renderToStaticMarkup(createElement(C, { size: 256, color: 'currentColor', strokeWidth: 2 }))
-  return sanitizeSvg(markup)
+  return sanitizeSvg(renderToStaticMarkup(createElement(C, { size: 256, color: 'currentColor', strokeWidth: 2 })))
 }
 
 function useDebounced<T>(v: T, ms: number) {
@@ -32,16 +30,21 @@ function useDebounced<T>(v: T, ms: number) {
 }
 
 export default function Assets() {
-  const [tab, setTab] = useState<Tab>('icons')
+  const tab = useUI((s) => s.assetTab)
+  const setTab = useUI((s) => s.setAssetTab)
   return (
     <div className="assets">
-      <div className="artboard-tabs" role="tablist">
-        {(['icons', 'online', 'library', 'images'] as Tab[]).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={'chip' + (tab === t ? ' on' : '')} onClick={() => setTab(t)}>
-            {t === 'icons' ? 'Icons' : t === 'online' ? 'Online' : t === 'library' ? 'Library' : 'Images'}
-          </button>
-        ))}
-      </div>
+      <Seg<AssetTab>
+        label="Asset source"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { v: 'icons', label: 'Icons' },
+          { v: 'online', label: 'Online' },
+          { v: 'library', label: 'Library' },
+          { v: 'images', label: 'Images' },
+        ]}
+      />
       {tab === 'icons' && <LocalIcons />}
       {tab === 'online' && <OnlineIcons />}
       {tab === 'library' && <Library />}
@@ -63,15 +66,32 @@ function addToLibrary(name: string, svg: string, source: string) {
 }
 
 function IconOptions({ color, setColor, size, setSize }: { color: string; setColor: (c: string) => void; size: number; setSize: (n: number) => void }) {
+  const palette = useEditor((s) => s.doc?.palette ?? [])
   return (
-    <div className="layer-tools">
-      <label className="inline">
-        Color <input type="color" aria-label="Icon color" value={color} onChange={(e) => setColor(e.target.value)} />
-      </label>
-      <label className="inline">
-        Size <input className="txt small" inputMode="numeric" aria-label="Icon size" value={size} onChange={(e) => setSize(Math.max(8, Math.min(512, Number(e.target.value) || 48)))} />
-      </label>
+    <div className="icon-opts">
+      <ColorField value={color} onChange={setColor} swatches={palette} />
+      <div className="chips" role="group" aria-label="Icon size">
+        {[24, 32, 48, 64, 96].map((n) => (
+          <button key={n} className={'chipbtn' + (size === n ? ' on' : '')} aria-pressed={size === n} onClick={() => setSize(n)}>
+            {n}
+          </button>
+        ))}
+      </div>
     </div>
+  )
+}
+
+function SearchBox({ value, onChange, placeholder, label }: { value: string; onChange: (v: string) => void; placeholder: string; label: string }) {
+  return (
+    <label className="search">
+      <Search size={16} />
+      <input aria-label={label} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      {value && (
+        <button className="ic small" aria-label="Clear search" onClick={() => onChange('')}>
+          <X size={14} />
+        </button>
+      )}
+    </label>
   )
 }
 
@@ -108,33 +128,38 @@ function LocalIcons() {
     setFavs(f)
     void setPref('icon-favs', f)
   }
+  const lib = (n: string) => {
+    const s = lucideSvg(n)
+    if (s) addToLibrary(n, s, 'Lucide')
+  }
 
   return (
     <>
-      <div className="layer-tools">
-        <input className="txt" aria-label="Search icons" placeholder={`Search ${ICON_NAMES.length} icons (works offline)`} value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className={'mini' + (onlyFav ? ' on' : '')} aria-pressed={onlyFav} onClick={() => setOnlyFav(!onlyFav)}>
-          Favorites
+      <div className="searchbar">
+        <SearchBox label="Search icons" placeholder={`Search ${ICON_NAMES.length} icons`} value={q} onChange={setQ} />
+        <button className={'ic sq' + (onlyFav ? ' on' : '')} aria-label="Show favorites only" aria-pressed={onlyFav} onClick={() => setOnlyFav(!onlyFav)}>
+          <Heart size={16} fill={onlyFav ? 'currentColor' : 'none'} />
         </button>
       </div>
       <IconOptions color={color} setColor={setColor} size={size} setSize={setSize} />
       {recent.length > 0 && !q && !onlyFav && (
-        <div className="recent">
-          <div className="hint">Recent</div>
+        <>
+          <div className="group-label">Recent</div>
           <div className="icon-grid">
             {recent.slice(0, 8).map((n) => (
-              <IconCell key={n} name={n} fav={favs.includes(n)} onUse={() => use(n)} onFav={() => fav(n)} onLib={() => lucideSvg(n) && addToLibrary(n, lucideSvg(n)!, 'Lucide')} />
+              <IconCell key={n} name={n} fav={favs.includes(n)} onUse={() => use(n)} onFav={() => fav(n)} onLib={() => lib(n)} />
             ))}
           </div>
-        </div>
+        </>
       )}
+      <div className="group-label">{q ? `Results for "${q}"` : onlyFav ? 'Favorites' : 'All icons'}</div>
       <div className="icon-grid">
         {results.map((n) => (
-          <IconCell key={n} name={n} fav={favs.includes(n)} onUse={() => use(n)} onFav={() => fav(n)} onLib={() => lucideSvg(n) && addToLibrary(n, lucideSvg(n)!, 'Lucide')} />
+          <IconCell key={n} name={n} fav={favs.includes(n)} onUse={() => use(n)} onFav={() => fav(n)} onLib={() => lib(n)} />
         ))}
       </div>
       {results.length === 0 && <div className="empty small">No icons match "{q}"</div>}
-      <div className="hint">Lucide icons, ISC license. Tap to insert. Heart = favorite, + = save to project library.</div>
+      <div className="hint">Lucide icons (ISC license). Works offline. Tap to insert.</div>
     </>
   )
 }
@@ -148,19 +173,19 @@ function IconCell({ name, fav, onUse, onFav, onLib }: { name: string; fav: boole
       </button>
       <div className="icell-actions">
         <button aria-label={fav ? `Unfavorite ${name}` : `Favorite ${name}`} aria-pressed={fav} onClick={onFav}>
-          <Heart size={11} fill={fav ? 'currentColor' : 'none'} />
+          <Heart size={12} fill={fav ? 'currentColor' : 'none'} />
         </button>
         <button aria-label={`Save ${name} to library`} onClick={onLib}>
-          +
+          <Plus size={12} />
         </button>
       </div>
     </div>
   )
 }
 
-// ---- Online: Iconify public API (documented, CORS enabled). Results are discovery links; license varies per icon set. ----
+// Online: Iconify public API (documented, CORS enabled). Licenses differ per icon set.
 interface Remote {
-  id: string // prefix:name
+  id: string
   prefix: string
   name: string
 }
@@ -193,10 +218,12 @@ function OnlineIcons() {
         return r.json()
       })
       .then((j) => {
-        const list: Remote[] = (j.icons ?? []).filter((i: unknown) => typeof i === 'string' && /^[a-z0-9-]+:[a-z0-9-]+$/i.test(i as string)).map((i: string) => {
-          const [prefix, name] = i.split(':')
-          return { id: i, prefix, name }
-        })
+        const list: Remote[] = (j.icons ?? [])
+          .filter((i: unknown) => typeof i === 'string' && /^[a-z0-9-]+:[a-z0-9-]+$/i.test(i as string))
+          .map((i: string) => {
+            const [prefix, name] = i.split(':')
+            return { id: i, prefix, name }
+          })
         setItems(list)
         setState('done')
       })
@@ -208,14 +235,13 @@ function OnlineIcons() {
     return () => c.abort()
   }, [dq, tick])
 
-  const importIcon = async (it: Remote, add: 'insert' | 'library') => {
+  const importIcon = async (it: Remote) => {
     try {
       const r = await fetch(`https://api.iconify.design/${it.prefix}/${it.name}.svg`)
       if (!r.ok) throw new Error('Download failed')
-      const text = await r.text()
-      const svg = sanitizeSvg(text)
+      const svg = sanitizeSvg(await r.text())
       if (!svg) throw new Error('Icon file was rejected (invalid or unsafe SVG)')
-      if (add === 'insert') insertIcon(svg, it.name, color, size)
+      insertIcon(svg, it.name, color, size)
       addToLibrary(it.name, svg, `Iconify:${it.prefix}`)
     } catch (e: any) {
       useUI.getState().say(e?.message ?? 'Import failed')
@@ -224,10 +250,9 @@ function OnlineIcons() {
 
   return (
     <>
-      <div className="layer-tools">
-        <input className="txt" aria-label="Search online icons" placeholder="Search online (Iconify)" value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
+      <SearchBox label="Search online icons" placeholder="Search online icons" value={q} onChange={setQ} />
       <IconOptions color={color} setColor={setColor} size={size} setSize={setSize} />
+      {state === 'idle' && <div className="empty small">Type at least 2 letters to search the web.</div>}
       {state === 'loading' && <div className="empty small">Searching...</div>}
       {state === 'error' && (
         <div className="warn">
@@ -241,14 +266,14 @@ function OnlineIcons() {
       <div className="icon-grid online">
         {items.map((it) => (
           <div className="icell" key={it.id}>
-            <button className="icon-btn" aria-label={`Insert ${it.name} from ${it.prefix}`} title={`${it.id} (SVG)`} onClick={() => void importIcon(it, 'insert')}>
+            <button className="icon-btn" aria-label={`Insert ${it.name} from ${it.prefix}`} title={`${it.id} (SVG)`} onClick={() => void importIcon(it)}>
               <img alt={it.name} width={24} height={24} loading="lazy" src={`https://api.iconify.design/${it.prefix}/${it.name}.svg`} />
             </button>
             <div className="icell-actions single">{it.prefix}</div>
           </div>
         ))}
       </div>
-      <div className="hint">Source: api.iconify.design. Your search text is sent to that service. Licenses differ per icon set (shown under each icon as the set id): check the set's license before shipping a design.</div>
+      <div className="hint">Source: api.iconify.design. Only your search text is sent. Licenses differ per icon set (set id shown under each icon): check before shipping.</div>
     </>
   )
 }
@@ -260,7 +285,7 @@ function Library() {
   return (
     <>
       <IconOptions color={color} setColor={setColor} size={size} setSize={setSize} />
-      {doc.assets.length === 0 && <div className="empty small">Project library is empty. Save icons or images here to reuse them.</div>}
+      {doc.assets.length === 0 && <div className="empty small">Your project library is empty. Save icons here to reuse them.</div>}
       <div className="icon-grid">
         {doc.assets.map((a) => (
           <div className="icell" key={a.id}>
@@ -272,9 +297,9 @@ function Library() {
             >
               {a.kind === 'icon' && a.svg ? <img alt="" width={24} height={24} src={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(a.svg.replace(/currentColor/g, '#171717'))} /> : <img alt="" width={24} height={24} src={a.src} />}
             </button>
-            <div className="icell-actions single">
+            <div className="icell-actions">
               <button aria-label={`Remove ${a.name} from library`} onClick={() => useEditor.getState().commit((d) => void (d.assets = d.assets.filter((x) => x.id !== a.id)))}>
-                x
+                <X size={12} />
               </button>
             </div>
           </div>
@@ -295,14 +320,13 @@ function Images() {
       const img = await readImage(f)
       const st = useEditor.getState()
       if (reference) {
-        // Screenshot reference: new artboard that matches the screenshot's aspect ratio, original kept as a LOCKED layer.
         const w = 360
         const h = Math.round((img.h / img.w) * w)
         const id = st.addArtboard(`${img.name} (trace)`, w, h)
         if (id) {
           st.addEl('image', { name: 'Reference (locked)', src: img.src, x: 0, y: 0, w, h, locked: true, opacity: 0.6 }, id)
           st.select(id, [])
-          say('Reference added and locked. Trace it with shapes and text; hide it from Layers when done.')
+          say('Reference added and locked. Trace it with shapes and text.')
         }
       } else {
         const w = Math.min(240, img.w)
@@ -320,12 +344,9 @@ function Images() {
         <ImagePlus size={18} /> Add image from device
       </button>
       <button className="big" disabled={busy} onClick={() => void addImage(true)}>
-        <ScanLine size={18} /> Import screenshot as trace reference
+        <ScanLine size={18} /> Screenshot as trace reference
       </button>
-      <div className="hint">
-        Screenshot import is a manual tracing workflow: the screenshot goes on a locked layer at its original aspect ratio and you rebuild it with editable shapes, text and icons. Automatic text/UI detection (OCR) is not included in this build.
-      </div>
+      <div className="hint">The screenshot goes on a locked layer at its original ratio. Rebuild it with editable shapes, text and icons. Automatic detection (OCR) is not included.</div>
     </div>
   )
 }
-
