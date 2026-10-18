@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Group, Layer, Rect, Shape, Stage, Text, Transformer } from 'react-konva'
+import { Group, Layer, Rect, Shape, Stage, Transformer } from 'react-konva'
 import Konva from 'konva'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
@@ -17,6 +17,44 @@ interface View {
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 
+const PAD_X = 20
+const PAD_TOP = 10
+const PAD_BOTTOM = 30 // room for the page dots
+
+/** Zoom that fits a whole screen in the viewport. */
+function fitScale(a: { w: number; h: number }, size: { w: number; h: number }) {
+  return clamp(Math.min((size.w - PAD_X * 2) / a.w, (size.h - PAD_TOP - PAD_BOTTOM - 20) / a.h), 0.05, 3)
+}
+
+/** The screen stays put like a Canva page: centred when it fits, otherwise it can only be panned within its own edges. */
+function clampView(v: View): View {
+  const size = sizeRef_.current
+  const doc = useEditor.getState().doc
+  if (!doc || size.w < 50) return v
+  const id = useEditor.getState().sel.abId
+  const a = doc.artboards.find((x) => x.id === id) ?? doc.artboards[0]
+  const s = clamp(v.s, fitScale(a, size) * 0.999, 6)
+  const aw = a.w * s
+  const ah = a.h * s
+  const areaH = size.h - PAD_TOP - PAD_BOTTOM
+  const x = aw <= size.w - PAD_X * 2 + 0.5 ? (size.w - aw) / 2 - a.x * s : clamp(v.x, size.w - PAD_X - (a.x + a.w) * s, PAD_X - a.x * s)
+  const y = ah <= areaH - 20 + 0.5 ? PAD_TOP + (areaH - ah) / 2 - a.y * s : clamp(v.y, size.h - PAD_BOTTOM - 10 - (a.y + a.h) * s, PAD_TOP + 10 - a.y * s)
+  return { s, x, y }
+}
+const sizeRef_ = { current: { w: 320, h: 480 } }
+
+/** Only the active screen is visible on the canvas; exports temporarily reveal the one they need. */
+function withOnlyVisible<T>(st: Konva.Stage, abId: string, fn: () => T): T {
+  const groups = st.find('.abgroup')
+  const prev = groups.map((g) => g.visible())
+  groups.forEach((g) => g.visible(g.id() === 'grp-' + abId))
+  try {
+    return fn()
+  } finally {
+    groups.forEach((g, i) => g.visible(prev[i]))
+  }
+}
+
 /** Renders a small PNG of the first artboard (used for project thumbnails). */
 export function makeThumbnail(): string | undefined {
   const st = stageHandle.stage
@@ -29,7 +67,7 @@ export function makeThumbnail(): string | undefined {
     tr?.visible(false)
     st.scale({ x: 1, y: 1 })
     st.position({ x: 0, y: 0 })
-    return st.toDataURL({ x: ab.x, y: ab.y, width: ab.w, height: ab.h, pixelRatio: Math.min(1, 240 / ab.h), mimeType: 'image/jpeg', quality: 0.7 })
+    return withOnlyVisible(st, ab.id, () => st.toDataURL({ x: ab.x, y: ab.y, width: ab.w, height: ab.h, pixelRatio: Math.min(2, 480 / ab.h), mimeType: 'image/jpeg', quality: 0.7 }))
   } catch {
     return undefined
   } finally {
@@ -55,7 +93,7 @@ export function renderArtboardImage(abId: string, pixelRatio: number, mime: 'ima
     if (transparent && mime === 'image/png') bg?.visible(false)
     st.scale({ x: 1, y: 1 })
     st.position({ x: 0, y: 0 })
-    return st.toDataURL({ x: ab.x, y: ab.y, width: ab.w, height: ab.h, pixelRatio, mimeType: mime, quality: 0.92 })
+    return withOnlyVisible(st, ab.id, () => st.toDataURL({ x: ab.x, y: ab.y, width: ab.w, height: ab.h, pixelRatio, mimeType: mime, quality: 0.92 }))
   } finally {
     bg?.visible(true)
     grid.forEach((g) => g.visible(true))
@@ -74,7 +112,10 @@ export default function CanvasView() {
   const trRef = useRef<Konva.Transformer>(null)
   const [size, setSize] = useState({ w: 320, h: 480 })
   const [view, setView] = useState<View>({ x: 16, y: 40, s: 0.6 })
+  const activeId = doc.artboards.some((a) => a.id === sel.abId) ? (sel.abId as string) : doc.artboards[0].id
+  const activeAb = doc.artboards.find((a) => a.id === activeId)!
   const viewRef = useRef(view)
+  sizeRef_.current = size
   const rafRef = useRef(0)
   const animRef = useRef(0)
   const pinch = useRef<{ d: number; cx: number; cy: number } | null>(null)
@@ -82,7 +123,8 @@ export default function CanvasView() {
 
   // Live view changes go straight to the Konva stage (no React render per pointer move),
   // then sync to React state once per frame. This keeps panning smooth and jitter-free.
-  const moveView = useCallback((v: View) => {
+  const moveView = useCallback((v0: View) => {
+    const v = clampView(v0)
     viewRef.current = v
     const st = stageHandle.stage
     if (st) {
@@ -123,30 +165,20 @@ export default function CanvasView() {
     [],
   )
 
-  const focusScale = (a: { w: number; h: number }) => clamp(Math.min((size.w - 40) / a.w, (size.h - 76) / a.h), 0.05, 3)
-
-  /** Centre one screen in the viewport (like swiping to a page in Canva). */
+  /** Put one screen back in the middle at "fit" zoom. */
   const focusAb = useCallback(
-    (id: string, animate = true) => {
+    (id: string, animate = false) => {
       const a = useEditor.getState().doc?.artboards.find((x) => x.id === id)
-      if (!a || size.w < 50) return
-      const s = clamp(Math.min((size.w - 40) / a.w, (size.h - 76) / a.h), 0.05, 3)
-      animateTo({ s, x: (size.w - a.w * s) / 2 - a.x * s, y: (size.h - 30 - a.h * s) / 2 - a.y * s + 10 }, animate)
+      const sz = sizeRef_.current
+      if (!a || sz.w < 50) return
+      const s = fitScale(a, sz)
+      const areaH = sz.h - PAD_TOP - PAD_BOTTOM
+      animateTo({ s, x: (sz.w - a.w * s) / 2 - a.x * s, y: PAD_TOP + (areaH - a.h * s) / 2 - a.y * s }, animate)
     },
-    [size.w, size.h, animateTo],
+    [animateTo],
   )
 
-  const fit = useCallback(() => {
-    const d = useEditor.getState().doc
-    if (!d || size.w < 50) return
-    const minX = Math.min(...d.artboards.map((a) => a.x))
-    const minY = Math.min(...d.artboards.map((a) => a.y))
-    const maxX = Math.max(...d.artboards.map((a) => a.x + a.w))
-    const maxY = Math.max(...d.artboards.map((a) => a.y + a.h))
-    const pad = 28
-    const s = clamp(Math.min((size.w - pad * 2) / (maxX - minX), (size.h - pad * 2 - 30) / (maxY - minY)), 0.05, 3)
-    animateTo({ s, x: (size.w - (maxX - minX) * s) / 2 - minX * s, y: (size.h - 30 - (maxY - minY) * s) / 2 - minY * s + 14 })
-  }, [size.w, size.h, animateTo])
+  const fit = useCallback(() => focusAb(useEditor.getState().sel.abId ?? useEditor.getState().doc?.artboards[0]?.id ?? '', true), [focusAb])
 
   useEffect(() => {
     const el = wrap.current
@@ -162,18 +194,18 @@ export default function CanvasView() {
     void (document as any).fonts?.ready?.then(() => stageHandle.stage?.batchDraw())
   }, [])
 
-  // when a project opens, centre its first screen
-  const fitted = useRef<string>('')
+  // opening a project, switching screen, resizing a screen or rotating the phone: show that screen centred at fit zoom
   useEffect(() => {
-    if (fitted.current !== doc.id && size.w > 50) {
-      fitted.current = doc.id
-      focusAb(doc.artboards[0].id, false)
-    }
-  }, [doc.id, doc.artboards, size.w, focusAb])
+    if (size.w > 50) focusAb(activeId)
+  }, [doc.id, activeId, activeAb.w, activeAb.h, size.w, size.h, focusAb])
 
   useEffect(() => {
     const h = () => fit()
-    const f = (e: Event) => focusAb((e as CustomEvent<string>).detail)
+    const f = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      if (useEditor.getState().sel.abId !== id) useEditor.getState().select(id, [])
+      focusAb(id)
+    }
     window.addEventListener('tuika-fit', h)
     window.addEventListener('tuika-focus', f)
     return () => {
@@ -198,7 +230,7 @@ export default function CanvasView() {
 
   const zoomAt = (px: number, py: number, factor: number) => {
     const v = viewRef.current
-    const s = clamp(v.s * factor, 0.05, 6)
+    const s = clamp(v.s * factor, 0.05, 6) // lower bound enforced by clampView
     const k = s / v.s
     moveView({ s, x: px - (px - v.x) * k, y: py - (py - v.y) * k })
   }
@@ -266,33 +298,9 @@ export default function CanvasView() {
   }
   const onMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => panBy(e.evt.clientX, e.evt.clientY)
 
-  /** After a swipe at "one screen" zoom, glide to the nearest screen so it sits centred. */
-  const snapToNearest = () => {
-    const d = useEditor.getState().doc
-    if (!d || d.artboards.length < 2) return
-    const v = viewRef.current
-    const cx = (size.w / 2 - v.x) / v.s
-    const cy = (size.h / 2 - v.y) / v.s
-    let best = d.artboards[0]
-    let bd = Infinity
-    for (const a of d.artboards) {
-      const dist = Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy)
-      if (dist < bd) {
-        bd = dist
-        best = a
-      }
-    }
-    const fs = focusScale(best)
-    if (v.s < fs * 0.8 || v.s > fs * 1.25) return
-    if (useEditor.getState().sel.abId !== best.id) useEditor.getState().select(best.id, [])
-    focusAb(best.id)
-  }
-
   const endGesture = () => {
-    const p = pan.current
     pan.current = null
     pinch.current = null
-    if (p && p.moved > 8) snapToNearest()
   }
 
   const onTransformEnd = () => {
@@ -350,23 +358,9 @@ export default function CanvasView() {
       >
         <Layer>
           {doc.artboards.map((ab) => {
-            const active = ab.id === sel.abId
+            const active = ab.id === activeId
             return (
-              <Group key={ab.id} x={ab.x} y={ab.y}>
-                <Text
-                  name="abbg"
-                  y={-18 / view.s}
-                  text={ab.name + (doc.startId === ab.id ? '  (start)' : '')}
-                  fontSize={12 / view.s}
-                  fill={active ? '#171717' : '#737373'}
-                  fontFamily="Inter, system-ui, sans-serif"
-                  onMouseDown={(e) => {
-                    store().select(ab.id, [])
-                  }}
-                  onTouchStart={(e) => {
-                    store().select(ab.id, [])
-                  }}
-                />
+              <Group key={ab.id} id={'grp-' + ab.id} name="abgroup" x={ab.x} y={ab.y} visible={active} listening={active}>
                 <Rect
                   id={'bg-' + ab.id}
                   name="abbg"
@@ -374,10 +368,8 @@ export default function CanvasView() {
                   height={ab.h}
                   fill={ab.bg}
                   shadowColor="#000"
-                  shadowBlur={10}
-                  shadowOpacity={0.14}
-                  stroke={active ? '#171717' : undefined}
-                  strokeWidth={active ? 1.5 / view.s : 0}
+                  shadowBlur={14}
+                  shadowOpacity={0.12}
                   onMouseDown={(e) => {
                     store().select(ab.id, [])
                   }}
@@ -469,8 +461,8 @@ export default function CanvasView() {
       <div className="zoom-badge" aria-live="polite">
         {Math.round(view.s * 100)}%
       </div>
-      <button className="fit-btn" aria-label="Show all screens" onClick={fit}>
-        All
+      <button className="fit-btn" aria-label="Fit screen to view" onClick={fit}>
+        Fit
       </button>
       {doc.artboards.length > 1 && (
         <div className="pager" role="tablist" aria-label="Screens">
@@ -478,12 +470,11 @@ export default function CanvasView() {
             <button
               key={a.id}
               role="tab"
-              aria-selected={a.id === sel.abId}
+              aria-selected={a.id === activeId}
               aria-label={`Go to ${a.name}`}
-              className={'pgdot' + (a.id === sel.abId ? ' on' : '')}
+              className={'pgdot' + (a.id === activeId ? ' on' : '')}
               onClick={() => {
                 useEditor.getState().select(a.id, [])
-                focusAb(a.id)
               }}
             />
           ))}

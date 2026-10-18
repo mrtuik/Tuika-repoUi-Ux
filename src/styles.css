@@ -212,12 +212,14 @@ select.txt { appearance: none; padding-right: 30px; background-image: url("data:
 
 /* floating dock: part of the layout, so panels end above it instead of sliding under it */
 .dock-wrap { position: relative; flex: none; display: flex; justify-content: center; padding: 8px 0 calc(10px + env(safe-area-inset-bottom)); background: var(--bg); z-index: 20; }
-.dock { display: flex; align-items: center; gap: 2px; max-width: calc(100% - 20px); overflow-x: auto; scrollbar-width: none; background: var(--panel); border: 1px solid var(--border); border-radius: 28px; padding: 5px; box-shadow: var(--shadow); }
+.dock { display: flex; align-items: center; gap: 2px; max-width: calc(100% - 20px); overflow-x: auto; scrollbar-width: none; background: var(--panel); border: 1px solid var(--border); border-radius: 22px; padding: 6px; scroll-padding-inline: 6px; box-shadow: var(--shadow); }
 .dock::-webkit-scrollbar { display: none; }
 .dk-item { display: inline-flex; align-items: center; flex: none; }
 .dk-sep { width: 1px; height: 22px; background: var(--border); margin: 0 5px; flex: none; }
-.dk { position: relative; min-width: 42px; height: 42px; padding: 0 10px; gap: 7px; border: 0; background: transparent; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--text); flex: none; }
-.dk.on { background: var(--bg2); box-shadow: inset 0 0 0 1px var(--border); }
+.dk { position: relative; min-width: 42px; height: 42px; padding: 0 10px; gap: 7px; border: 0; background: transparent; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--text); flex: none; }
+/* outer dock is less round (22) than the inner active pill (full) */
+.dk.on { background: var(--accent); color: var(--on-accent); padding: 0 16px; }
+.dk.on.dot::after { background: var(--on-accent); box-shadow: 0 0 0 2px var(--accent); }
 .dk-label { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
 .dk.dot::after { content: ''; position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--panel); }
 .shape-menu { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% - 2px); display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 6px; box-shadow: var(--shadow); z-index: 30; }
@@ -262,21 +264,18 @@ select.txt { appearance: none; padding-right: 30px; background-image: url("data:
 .plist.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .plist.list { grid-template-columns: 1fr; }
 @media (min-width: 640px) { .plist.grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
-.pcard { position: relative; display: flex; flex-direction: column; border-radius: 18px; background: var(--bg2); overflow: visible; }
+.pcard { position: relative; display: flex; flex-direction: column; border-radius: 18px; background: var(--panel); border: 1px solid var(--border); overflow: hidden; }
 .plist.list .pcard { flex-direction: row; align-items: stretch; }
-.pthumb { border: 0; background: var(--bg3); border-radius: 18px 18px 0 0; aspect-ratio: 4 / 5; display: flex; align-items: center; justify-content: center; padding: 0; overflow: hidden; color: var(--text2); }
-.plist.list .pthumb { width: 84px; aspect-ratio: 1; border-radius: 18px 0 0 18px; flex: none; }
-.pthumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.pthumb { border: 0; background: var(--bg2); aspect-ratio: 4 / 5; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: hidden; color: var(--text2); width: 100%; }
+.plist.list .pthumb { width: 96px; aspect-ratio: auto; min-height: 120px; flex: none; padding: 10px; }
+.pthumb img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; background: #fff; border-radius: 4px; box-shadow: 0 0 0 1px var(--border), 0 2px 8px rgba(10, 10, 10, 0.08); }
 .ph { font-size: 36px; font-weight: 700; color: var(--text2); }
-.pinfo { padding: 10px 10px 12px 14px; flex: 1; min-width: 0; position: relative; }
-.prow1 { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.pinfo { padding: 10px 12px 8px 14px; flex: 1; min-width: 0; position: relative; }
 .pn { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pm { color: var(--text2); font-size: 12px; margin-top: 1px; }
-.dots { font-weight: 700; letter-spacing: 1px; transform: translateY(-4px); }
-.pmenu { position: absolute; right: 8px; top: 40px; z-index: 10; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 4px; box-shadow: var(--shadow); min-width: 170px; }
-.pmenu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; border-radius: 10px; font-size: 14px; text-align: left; }
-.pmenu button:active { background: var(--bg2); }
-.pmenu .danger { color: var(--red); }
+.pact { display: flex; align-items: center; justify-content: space-between; margin: 6px -6px 0 -8px; }
+.pact button { width: 40px; height: 40px; border: 0; background: transparent; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+.pact button:active { background: var(--bg2); }
 .modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; align-items: flex-end; justify-content: center; z-index: 80; }
 .modal { background: var(--bg); width: 100%; max-width: 560px; max-height: 92vh; border-radius: 24px 24px 0 0; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); }
 .modal-body { overflow: auto; padding: 0 14px 18px; }

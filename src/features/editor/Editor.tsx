@@ -37,7 +37,7 @@ function MoreMenu() {
   const items = [
     { I: Frame, t: 'Add artboard', run: () => st.addArtboard() },
     { I: CopyPlus, t: 'Duplicate current artboard', run: () => sel.abId && st.duplicateArtboard(sel.abId) },
-    { I: Maximize, t: 'Fit all artboards to screen', run: () => window.dispatchEvent(new Event('tuika-fit')) },
+    { I: Maximize, t: 'Fit screen to view', run: () => window.dispatchEvent(new Event('tuika-fit')) },
     { I: Grid3x3, t: grid ? 'Hide 8px grid' : 'Show 8px grid', run: toggleGrid },
     { I: Pencil, t: 'Rename project', run: () => { const n = window.prompt('Project name', doc.name); if (n && n.trim()) st.rename(n.trim()) } },
     { I: ClipboardPaste, t: 'Paste', run: () => st.paste(), off: !hasClip },

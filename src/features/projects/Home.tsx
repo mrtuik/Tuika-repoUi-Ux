@@ -198,31 +198,24 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
                     {p.thumb ? <img alt="" src={p.thumb} /> : <span className="ph">{p.name.slice(0, 1).toUpperCase()}</span>}
                   </button>
                   <div className="pinfo">
-                    <div className="prow1">
-                      <div className="pn">{p.name}</div>
-                      <button className="ic small" aria-label={`More for ${p.name}`} aria-expanded={menu === p.id} onClick={() => setMenu(menu === p.id ? null : p.id)}>
-                        {menu === p.id ? <X size={16} /> : <span className="dots">...</span>}
-                      </button>
-                    </div>
+                    <div className="pn">{p.name}</div>
                     <div className="pm">
                       {p.artboards} screen{p.artboards > 1 ? 's' : ''} - {ago(p.updatedAt)}
                     </div>
-                    {menu === p.id && (
-                      <div className="pmenu" role="menu">
-                        <button role="menuitem" onClick={() => { setMenu(null); void rename(p) }}>
-                          <Pencil size={15} /> Rename
-                        </button>
-                        <button role="menuitem" onClick={() => { setMenu(null); void duplicate(p) }}>
-                          <Copy size={15} /> Duplicate
-                        </button>
-                        <button role="menuitem" onClick={() => { setMenu(null); void exportOne(p) }}>
-                          <Download size={15} /> Export backup
-                        </button>
-                        <button role="menuitem" className="danger" onClick={() => { setMenu(null); void remove(p) }}>
-                          <Trash2 size={15} /> Delete
-                        </button>
-                      </div>
-                    )}
+                    <div className="pact">
+                      <button aria-label={`Rename ${p.name}`} title="Rename" onClick={() => void rename(p)}>
+                        <Pencil size={18} />
+                      </button>
+                      <button aria-label={`Duplicate ${p.name}`} title="Duplicate" onClick={() => void duplicate(p)}>
+                        <Copy size={18} />
+                      </button>
+                      <button aria-label={`Export backup of ${p.name}`} title="Export backup" onClick={() => void exportOne(p)}>
+                        <Download size={18} />
+                      </button>
+                      <button aria-label={`Delete ${p.name}`} title="Delete" onClick={() => void remove(p)}>
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}
