@@ -4,23 +4,22 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { icons as lucideIcons, Clock, Heart, ImagePlus, ScanLine, Search, Plus, Trash2, X } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
-import type { AssetTab } from '../../state/ui'
 import { getPref, setPref } from '../../database/db'
 import { uid } from '../../engine/doc'
 import { pickFile, readImage } from '../../services/files'
 import { sanitizeSvg } from '../../services/svg'
-import { ColorField, Seg } from '../inspector/controls'
+import { ColorField } from '../inspector/controls'
 
-const ICON_NAMES = Object.keys(lucideIcons)
-const toKebab = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+export const ICON_NAMES = Object.keys(lucideIcons)
+export const toKebab = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
 
-function lucideSvg(name: string): string | null {
+export function lucideSvg(name: string): string | null {
   const C = (lucideIcons as any)[name]
   if (!C) return null
   return sanitizeSvg(renderToStaticMarkup(createElement(C, { size: 256, color: 'currentColor', strokeWidth: 2 })))
 }
 
-function useDebounced<T>(v: T, ms: number) {
+export function useDebounced<T>(v: T, ms: number) {
   const [d, setD] = useState(v)
   useEffect(() => {
     const t = setTimeout(() => setD(v), ms)
@@ -29,31 +28,7 @@ function useDebounced<T>(v: T, ms: number) {
   return d
 }
 
-export default function Assets() {
-  const tab = useUI((s) => s.assetTab)
-  const setTab = useUI((s) => s.setAssetTab)
-  return (
-    <div className="assets">
-      <Seg<AssetTab>
-        label="Asset source"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { v: 'icons', label: 'Icons' },
-          { v: 'online', label: 'Online' },
-          { v: 'library', label: 'Library' },
-          { v: 'images', label: 'Images' },
-        ]}
-      />
-      {tab === 'icons' && <LocalIcons />}
-      {tab === 'online' && <OnlineIcons />}
-      {tab === 'library' && <Library />}
-      {tab === 'images' && <Images />}
-    </div>
-  )
-}
-
-function insertIcon(svg: string, name: string, color: string, size: number) {
+export function insertIcon(svg: string, name: string, color: string, size: number) {
   useEditor.getState().addEl('icon', { name, svg, fill: color, w: size, h: size })
   useUI.getState().say(`${name} added`)
 }
@@ -81,7 +56,7 @@ function IconOptions({ color, setColor, size, setSize }: { color: string; setCol
   )
 }
 
-function SearchBox({ value, onChange, placeholder, label }: { value: string; onChange: (v: string) => void; placeholder: string; label: string }) {
+export function SearchBox({ value, onChange, placeholder, label }: { value: string; onChange: (v: string) => void; placeholder: string; label: string }) {
   return (
     <label className="search card">
       <Search size={18} />
@@ -95,7 +70,7 @@ function SearchBox({ value, onChange, placeholder, label }: { value: string; onC
   )
 }
 
-function LocalIcons() {
+export function LocalIcons() {
   const [q, setQ] = useState('')
   const [color, setColor] = useState('#171717')
   const [size, setSize] = useState(48)
@@ -195,7 +170,7 @@ interface Remote {
   name: string
 }
 
-function OnlineIcons() {
+export function OnlineIcons() {
   const [q, setQ] = useState('')
   const [state, setState] = useState<'idle' | 'loading' | 'error' | 'done'>('idle')
   const [err, setErr] = useState('')
@@ -338,7 +313,7 @@ function OnlineIcons() {
   )
 }
 
-function Library() {
+export function Library() {
   const doc = useEditor((s) => s.doc)!
   const [color, setColor] = useState('#171717')
   const [size, setSize] = useState(48)
@@ -369,7 +344,7 @@ function Library() {
   )
 }
 
-function Images() {
+export function Images() {
   const [busy, setBusy] = useState(false)
   const say = useUI.getState().say
   const addImage = async (reference: boolean) => {

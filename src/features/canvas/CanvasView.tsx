@@ -4,10 +4,69 @@ import Konva from 'konva'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import ElNode from './ElNode'
+import FloatBar from './FloatBar'
+import { stageHandle } from './handle'
 
 Konva.hitOnDragEnabled = true
 
-export const stageHandle: { stage: Konva.Stage | null } = { stage: null }
+/** Canva-like handles: round corners, pill-shaped sides, round rotate button below the element. */
+function styleAnchor(a: Konva.Rect) {
+  const side = (w: number, h: number) => {
+    a.width(w)
+    a.height(h)
+    a.offsetX(w / 2)
+    a.offsetY(h / 2)
+    a.cornerRadius(Math.min(w, h) / 2)
+  }
+  if (a.hasName('top-center') || a.hasName('bottom-center')) side(34, 11)
+  else if (a.hasName('middle-left') || a.hasName('middle-right')) side(11, 34)
+  else if (a.hasName('rotater')) {
+    side(32, 32)
+    a.sceneFunc((ctx: any, shape: any) => {
+      const r = 16
+      ctx.beginPath()
+      ctx.arc(r, r, r, 0, Math.PI * 2)
+      ctx.closePath()
+      ctx.fillStrokeShape(shape)
+      const c = ctx._context as CanvasRenderingContext2D
+      c.save()
+      c.strokeStyle = '#171717'
+      c.lineWidth = 1.8
+      c.lineCap = 'round'
+      c.beginPath()
+      c.arc(r, r, 6.5, Math.PI * 0.15, Math.PI * 1.05)
+      c.stroke()
+      c.beginPath()
+      c.arc(r, r, 6.5, Math.PI * 1.15, Math.PI * 2.05)
+      c.stroke()
+      c.fillStyle = '#171717'
+      c.beginPath()
+      c.moveTo(r + 6.5 + 3, r + 1)
+      c.lineTo(r + 6.5 - 3, r + 1)
+      c.lineTo(r + 6.5, r + 5)
+      c.fill()
+      c.beginPath()
+      c.moveTo(r - 6.5 - 3, r - 1)
+      c.lineTo(r - 6.5 + 3, r - 1)
+      c.lineTo(r - 6.5, r - 5)
+      c.fill()
+      c.restore()
+    })
+    a.hitFunc((ctx: any, shape: any) => {
+      ctx.beginPath()
+      ctx.arc(16, 16, 20, 0, Math.PI * 2)
+      ctx.closePath()
+      ctx.fillStrokeShape(shape)
+    })
+  } else {
+    side(18, 18)
+  }
+  a.shadowColor('rgba(0,0,0,0.35)')
+  a.shadowBlur(4)
+  a.shadowOffsetY(1)
+}
+
+export { stageHandle }
 
 interface View {
   x: number
@@ -30,7 +89,7 @@ function fitScale(a: { w: number; h: number }, size: { w: number; h: number }) {
 function clampView(v: View): View {
   const size = sizeRef_.current
   const doc = useEditor.getState().doc
-  if (!doc || size.w < 50) return v
+  if (!doc || size.w < 50 || size.h < 120) return v
   const id = useEditor.getState().sel.abId
   const a = doc.artboards.find((x) => x.id === id) ?? doc.artboards[0]
   const s = clamp(v.s, fitScale(a, size) * 0.999, 6)
@@ -115,6 +174,8 @@ export default function CanvasView() {
   const activeId = doc.artboards.some((a) => a.id === sel.abId) ? (sel.abId as string) : doc.artboards[0].id
   const activeAb = doc.artboards.find((a) => a.id === activeId)!
   const viewRef = useRef(view)
+  const fitRef = useRef(0)
+  const [busy, setBusy] = useState(false)
   sizeRef_.current = size
   const rafRef = useRef(0)
   const animRef = useRef(0)
@@ -172,6 +233,7 @@ export default function CanvasView() {
       const sz = sizeRef_.current
       if (!a || sz.w < 50) return
       const s = fitScale(a, sz)
+      fitRef.current = s
       const areaH = sz.h - PAD_TOP - PAD_BOTTOM
       animateTo({ s, x: (sz.w - a.w * s) / 2 - a.x * s, y: PAD_TOP + (areaH - a.h * s) / 2 - a.y * s }, animate)
     },
@@ -196,8 +258,16 @@ export default function CanvasView() {
 
   // opening a project, switching screen, resizing a screen or rotating the phone: show that screen centred at fit zoom
   useEffect(() => {
-    if (size.w > 50) focusAb(activeId)
-  }, [doc.id, activeId, activeAb.w, activeAb.h, size.w, size.h, focusAb])
+    if (size.w > 50 && size.h > 120) focusAb(activeId)
+  }, [doc.id, activeId, activeAb.w, activeAb.h, size.w, focusAb])
+
+  // panels opening/closing resize the canvas: keep the user's zoom unless the screen was simply fitted
+  useEffect(() => {
+    if (size.w <= 50 || size.h <= 120) return
+    const atFit = viewRef.current.s <= fitRef.current * 1.02
+    if (atFit) focusAb(activeId)
+    else moveView(viewRef.current)
+  }, [size.h])
 
   useEffect(() => {
     const h = () => fit()
@@ -355,6 +425,8 @@ export default function CanvasView() {
         onMouseUp={endGesture}
         onTouchEnd={endGesture}
         onMouseLeave={endGesture}
+        onDragStart={() => setBusy(true)}
+        onDragEnd={() => setBusy(false)}
       >
         <Layer>
           {doc.artboards.map((ab) => {
@@ -432,7 +504,11 @@ export default function CanvasView() {
                           }
                         })
                       }}
-                      onDbl={() => useUI.getState().setSheet('props')}
+                      onDbl={(id) => {
+                        const el = ab.els.find((x) => x.id === id)
+                        if (el?.type === 'text' && window.innerWidth < 900) useUI.getState().setCtx('edit')
+                        else useUI.getState().setSheet('props')
+                      }}
                     />
                   ))}
                 </Group>
@@ -444,20 +520,29 @@ export default function CanvasView() {
           <Transformer
             ref={trRef}
             rotateEnabled
-            keepRatio={false}
+            keepRatio
             borderStroke="#171717"
-            anchorStroke="#171717"
+            borderStrokeWidth={1.5}
+            anchorStroke="#a1a1aa"
+            anchorStrokeWidth={1.5}
             anchorFill="#FFFFFF"
-            anchorSize={14}
-            anchorCornerRadius={3}
-            rotateAnchorOffset={26}
+            anchorSize={18}
+            anchorCornerRadius={9}
+            rotateAnchorAngle={180}
+            rotateAnchorOffset={34}
             rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
             ignoreStroke
-            onTransformEnd={onTransformEnd}
-            boundBoxFunc={(o, n) => (Math.abs(n.width) < 4 || Math.abs(n.height) < 0 ? o : n)}
+            anchorStyleFunc={styleAnchor}
+            onTransformStart={() => setBusy(true)}
+            onTransformEnd={() => {
+              setBusy(false)
+              onTransformEnd()
+            }}
+            boundBoxFunc={(o, n) => (Math.abs(n.width) < 4 ? o : n)}
           />
         </Layer>
       </Stage>
+      <FloatBar view={view} size={size} busy={busy} />
       <div className="zoom-badge" aria-live="polite">
         {Math.round(view.s * 100)}%
       </div>

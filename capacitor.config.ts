@@ -5,7 +5,11 @@ const config: CapacitorConfig = {
   appName: 'Tuika UI/UX',
   webDir: 'dist',
   android: { allowMixedContent: false },
-  plugins: { StatusBar: { backgroundColor: '#FFFFFF', style: 'LIGHT', overlaysWebView: false } },
+  plugins: {
+    // fetch() goes through the native stack, so photo search/download is not blocked by CORS
+    CapacitorHttp: { enabled: true },
+    StatusBar: { backgroundColor: '#FFFFFF', style: 'LIGHT', overlaysWebView: false },
+  },
 }
 
 export default config

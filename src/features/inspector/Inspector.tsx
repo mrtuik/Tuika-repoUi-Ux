@@ -1,6 +1,7 @@
-import { AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignLeft, AlignRight, AlignStartHorizontal, AlignStartVertical, Copy, Trash2, Underline } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, Lock, Unlock, AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignLeft, AlignRight, AlignStartHorizontal, AlignStartVertical, Copy, Trash2, Underline } from 'lucide-react'
 import { useEditor, selectedEls } from '../../state/editor'
 import type { AlignMode } from '../../state/editor'
+import type { CtxPanel } from '../../state/ui'
 import { brokenLinks } from '../../engine/doc'
 import { ColorField, Field, Num, Section, Seg, Slider, Toggle } from './controls'
 
@@ -29,7 +30,7 @@ const ALIGNS: { m: AlignMode; I: typeof AlignStartHorizontal; l: string }[] = [
   { m: 'bottom', I: AlignEndHorizontal, l: 'Align bottom' },
 ]
 
-export default function Inspector() {
+export default function Inspector({ only }: { only?: CtxPanel } = {}) {
   const doc = useEditor((s) => s.doc)!
   const sel = useEditor((s) => s.sel)
   const els = useEditor((s) => selectedEls(s))
@@ -101,11 +102,13 @@ export default function Inspector() {
   const hasFill = !isLine && e.type !== 'image'
   const hasStroke = e.type === 'rect' || e.type === 'ellipse' || e.type === 'text'
   const hasRadius = e.type === 'rect' || e.type === 'image'
+  const show = (p: CtxPanel) => !only || only === 'all' || only === p
 
   return (
     <div className="props">
-      {multi && <div className="hint flush">{els.length} elements selected. Changes apply to all.</div>}
+      {multi && (!only || only === 'all') && <div className="hint flush">{els.length} elements selected. Changes apply to all.</div>}
 
+      {show('position') && (
       <Section title="Layout">
         <div className="aligns" role="group" aria-label="Align to artboard">
           {ALIGNS.map(({ m, I, l }) => (
@@ -125,10 +128,25 @@ export default function Inspector() {
           </div>
         )}
       </Section>
+      )}
 
-      {isText && !multi && (
+      {only === 'corners' && hasRadius && (
+        <Section title="Corners">
+          <div className="slide-row">
+            <Slider label="Corner radius" value={Math.min(200, Math.round(e.radius))} min={0} max={Math.max(24, Math.round(Math.min(e.w, e.h) / 2))} onChange={(v) => patch({ radius: v }, 'rad')} />
+            <Num label="Corner radius" value={e.radius} min={0} onChange={(v) => patch({ radius: v }, 'rad')} suffix="px" />
+          </div>
+        </Section>
+      )}
+
+      {isText && !multi && show('edit') && (
         <Section title="Text">
-          <textarea className="txt area" aria-label="Text content" rows={2} value={e.text ?? ''} onChange={(ev) => patch({ text: ev.target.value }, 'text')} />
+          <textarea className="txt area" aria-label="Text content" rows={3} autoFocus={only === 'edit'} value={e.text ?? ''} onChange={(ev) => patch({ text: ev.target.value }, 'text')} />
+        </Section>
+      )}
+
+      {isText && !multi && show('font') && (
+        <Section title="Font">
           <Field label="Typeface">
             <select className="txt wide" aria-label="Font family" value={e.fontFamily} onChange={(ev) => patch({ fontFamily: ev.target.value })}>
               {FONTS.map(([v, n]) => (
@@ -160,6 +178,11 @@ export default function Inspector() {
               <Num label="Font size" value={e.fontSize ?? 16} min={1} max={500} onChange={(v) => patch({ fontSize: v }, 'fs')} suffix="px" />
             </div>
           </Field>
+        </Section>
+      )}
+
+      {isText && !multi && show('format') && (
+        <Section title="Style">
           <Field label="Align and style">
             <div className="btnrow">
               <Seg
@@ -188,13 +211,13 @@ export default function Inspector() {
         </Section>
       )}
 
-      {hasFill && (
+      {hasFill && show('colour') && (
         <Section title={isText ? 'Text color' : 'Fill'}>
           <ColorField value={e.fill} swatches={doc.palette} onSave={savePalette(e.fill)} onChange={(c) => patch({ fill: c }, 'fill')} />
         </Section>
       )}
 
-      {(hasStroke || isLine) && (
+      {(hasStroke || isLine) && show('stroke') && (
         <Section title={isLine ? 'Line' : 'Stroke'} action={!isLine ? <Toggle label="Stroke" on={e.strokeOn} onChange={(v) => patch({ strokeOn: v })} /> : undefined}>
           {(e.strokeOn || isLine) && (
             <>
@@ -210,6 +233,7 @@ export default function Inspector() {
         </Section>
       )}
 
+      {show('opacity') && (
       <Section title="Appearance">
         <Field label="Opacity">
           <div className="slide-row">
@@ -218,7 +242,9 @@ export default function Inspector() {
           </div>
         </Field>
       </Section>
+      )}
 
+      {show('shadow') && (
       <Section title="Shadow" action={<Toggle label="Shadow" on={e.shadow.enabled} onChange={(v) => patch({ shadow: { ...e.shadow, enabled: v } })} />}>
         {e.shadow.enabled && (
           <>
@@ -247,8 +273,9 @@ export default function Inspector() {
           </>
         )}
       </Section>
+      )}
 
-      {!multi && (
+      {!multi && show('link') && (
         <Section title="Prototype">
           <Field label="On tap, go to">
             <select className="txt wide" aria-label="Prototype link target" value={e.link ?? ''} onChange={(ev) => patch({ link: ev.target.value || undefined })}>
@@ -264,14 +291,42 @@ export default function Inspector() {
         </Section>
       )}
 
-      <div className="btnrow end">
-        <button className="mini" onClick={() => st.duplicateSel()}>
-          <Copy size={14} /> Duplicate
-        </button>
-        <button className="mini danger" onClick={() => st.removeSel()}>
-          <Trash2 size={14} /> Delete
-        </button>
-      </div>
+      {show('arrange') && (
+        <Section title="Arrange">
+          <div className="btnrow">
+            <button className="mini" onClick={() => st.reorder('front')}>
+              <ArrowUpToLine size={14} /> To front
+            </button>
+            <button className="mini" onClick={() => st.reorder('up')}>
+              <ChevronUp size={14} /> Forward
+            </button>
+          </div>
+          <div className="btnrow">
+            <button className="mini" onClick={() => st.reorder('down')}>
+              <ChevronDown size={14} /> Backward
+            </button>
+            <button className="mini" onClick={() => st.reorder('back')}>
+              <ArrowDownToLine size={14} /> To back
+            </button>
+          </div>
+          <div className="btnrow">
+            <button className="mini" onClick={() => patch({ locked: !e.locked })}>
+              {e.locked ? <Unlock size={14} /> : <Lock size={14} />} {e.locked ? 'Unlock' : 'Lock'}
+            </button>
+          </div>
+        </Section>
+      )}
+
+      {(!only || only === 'all') && (
+        <div className="btnrow end">
+          <button className="mini" onClick={() => st.duplicateSel()}>
+            <Copy size={14} /> Duplicate
+          </button>
+          <button className="mini danger" onClick={() => st.removeSel()}>
+            <Trash2 size={14} /> Delete
+          </button>
+        </div>
+      )}
     </div>
   )
 }

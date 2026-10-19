@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Circle, Download, Frame, Grid3x3, ImagePlus, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, MoveRight, Minus, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Smile, Square, Type, Undo2, X, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import type { Sheet } from '../../state/ui'
@@ -8,7 +8,9 @@ import { useBackHandler } from '../../services/back'
 import CanvasView, { makeThumbnail } from '../canvas/CanvasView'
 import Inspector from '../inspector/Inspector'
 import Layers from '../layers/Layers'
-import Assets from '../assets/Assets'
+import Elements from '../assets/Elements'
+import BottomSheet from './BottomSheet'
+import { ContextBar, ContextSheet } from './ContextBar'
 import ExportPanel from './ExportPanel'
 import Preview from '../prototype/Preview'
 
@@ -22,9 +24,9 @@ function useWide() {
   return w
 }
 
-const TITLES: Record<Exclude<Sheet, null>, string> = { props: 'Properties', layers: 'Layers', assets: 'Assets', export: 'Export', more: 'More' }
+const TITLES: Record<Exclude<Sheet, null>, string> = { props: 'Properties', layers: 'Layers', assets: 'Elements', export: 'Export', more: 'More' }
 
-const SHORT: Record<string, string> = { sel: 'Select', text: 'Text', shape: 'Shapes', icons: 'Icons', img: 'Image', frame: 'Screen', layers: 'Layers', props: 'Style' }
+const SHORT: Record<string, string> = { sel: 'Select', elements: 'Elements', text: 'Text', frame: 'Screen', layers: 'Layers', props: 'Style' }
 
 function MoreMenu() {
   const st = useEditor.getState()
@@ -60,10 +62,10 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const canUndo = useEditor((s) => s.past.length > 0)
   const canRedo = useEditor((s) => s.future.length > 0)
   const selCount = useEditor((s) => s.sel.elIds.length)
+  const selKey = useEditor((s) => s.sel.elIds.join(','))
   const save = useSave()
-  const { sheet, setSheet, preview, setPreview, toast, setAssetTab } = useUI()
+  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements } = useUI()
   const wide = useWide()
-  const [shapeMenu, setShapeMenu] = useState(false)
   const st = useEditor.getState()
 
   const exit = useCallback(async () => {
@@ -75,11 +77,19 @@ export default function Editor({ onExit }: { onExit: () => void }) {
 
   const closeSheet = useCallback(() => setSheet(null), [setSheet])
   const closePreview = useCallback(() => setPreview(false), [setPreview])
-  const closeShape = useCallback(() => setShapeMenu(false), [])
+  const closeCtx = useCallback(() => setCtx(null), [setCtx])
+  const deselect = useCallback(() => {
+    const t = useEditor.getState()
+    t.select(t.sel.abId, [])
+  }, [])
+  const hasSel = selCount > 0
+  const barOn = !wide && hasSel && sheet === null
+  const ctxOpen = barOn && ctx !== null
   useBackHandler(preview, closePreview)
-  useBackHandler(!preview && shapeMenu, closeShape)
-  useBackHandler(!preview && !shapeMenu && sheet !== null && !wide, closeSheet)
-  useBackHandler(!preview && !shapeMenu && (sheet === null || wide), () => void exit())
+  useBackHandler(!preview && !wide && sheet !== null, closeSheet)
+  useBackHandler(!preview && ctxOpen, closeCtx)
+  useBackHandler(!preview && barOn && !ctxOpen, deselect)
+  useBackHandler(!preview && (sheet === null || wide) && !barOn, () => void exit())
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -128,40 +138,31 @@ export default function Editor({ onExit }: { onExit: () => void }) {
     return () => document.removeEventListener('visibilitychange', h)
   }, [])
 
-  const toggle = (s: Exclude<Sheet, null>) => {
-    setShapeMenu(false)
-    setSheet(sheet === s ? null : s)
-  }
-  const openAssets = (tab: 'icons' | 'images') => {
-    setShapeMenu(false)
-    setAssetTab(tab)
-    setSheet('assets')
-  }
+  const toggle = (s: Exclude<Sheet, null>) => setSheet(sheet === s ? null : s)
+
+  // adding or picking an element closes the Elements sheet (like Canva) and shows that element's toolbar
+  const lastSel = useRef(selKey)
+  useEffect(() => {
+    if (selKey && selKey !== lastSel.current && useUI.getState().sheet === 'assets') setSheet(null)
+    if (!selKey) setCtx(null)
+    lastSel.current = selKey
+  }, [selKey, setSheet, setCtx])
   const content = (s: Exclude<Sheet, null>) =>
-    s === 'props' ? <Inspector /> : s === 'layers' ? <Layers /> : s === 'assets' ? <Assets /> : s === 'export' ? <ExportPanel /> : <MoreMenu />
+    s === 'props' ? <Inspector /> : s === 'layers' ? <Layers /> : s === 'assets' ? <Elements /> : s === 'export' ? <ExportPanel /> : <MoreMenu />
 
   useEffect(() => {
     document.querySelector('.dock .dk.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })
-  }, [sheet, shapeMenu])
+  }, [sheet])
 
   const statusText = save.status === 'saving' ? 'Saving...' : save.status === 'error' ? 'Save failed' : save.status === 'saved' ? 'All changes saved' : 'Local project'
 
   const dock: { id: string; label: string; I: typeof Square; run: () => void; on?: boolean; dot?: boolean }[] = [
-    { id: 'sel', label: 'Select', I: MousePointer2, run: () => { setShapeMenu(false); st.select(useEditor.getState().sel.abId, []); setSheet(null) }, on: sheet === null && !shapeMenu },
-    { id: 'text', label: 'Add text', I: Type, run: () => { setShapeMenu(false); st.addEl('text') } },
-    { id: 'shape', label: 'Add shape', I: ShapesIcon, run: () => setShapeMenu((v) => !v), on: shapeMenu },
-    { id: 'icons', label: 'Icons', I: Smile, run: () => openAssets('icons'), on: sheet === 'assets' },
-    { id: 'img', label: 'Add image', I: ImagePlus, run: () => openAssets('images') },
-    { id: 'frame', label: 'Add artboard', I: Frame, run: () => { setShapeMenu(false); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
+    { id: 'sel', label: 'Select', I: MousePointer2, run: () => { st.select(useEditor.getState().sel.abId, []); setSheet(null) }, on: sheet === null },
+    { id: 'elements', label: 'Elements', I: ShapesIcon, run: () => (sheet === 'assets' ? setSheet(null) : openElements('home')), on: sheet === 'assets' },
+    { id: 'text', label: 'Add text', I: Type, run: () => { setSheet(null); st.addEl('text'); setCtx('edit') } },
+    { id: 'frame', label: 'Add screen', I: Frame, run: () => { setSheet(null); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
     { id: 'layers', label: 'Layers', I: LayersIcon, run: () => toggle('layers'), on: sheet === 'layers' },
-    { id: 'props', label: 'Properties', I: Paintbrush, run: () => toggle('props'), on: sheet === 'props', dot: selCount > 0 && sheet !== 'props' },
-  ]
-
-  const shapes = [
-    { t: 'Rectangle', I: Square, run: () => st.addEl('rect') },
-    { t: 'Ellipse', I: Circle, run: () => st.addEl('ellipse') },
-    { t: 'Line', I: Minus, run: () => st.addEl('line') },
-    { t: 'Arrow', I: MoveRight, run: () => st.addEl('arrow') },
+    { id: 'props', label: 'Properties', I: Paintbrush, run: () => toggle('props'), on: sheet === 'props' },
   ]
 
   return (
@@ -227,47 +228,28 @@ export default function Editor({ onExit }: { onExit: () => void }) {
       </div>
 
       {!wide && sheet && (
-        <section className="sheet" aria-label={TITLES[sheet]}>
-          <div className="grab" aria-hidden />
-          <div className="sheet-head">
-            <strong>{TITLES[sheet]}</strong>
-            <button className="ic fill" aria-label="Close panel" onClick={closeSheet}>
-              <X size={17} />
-            </button>
-          </div>
-          <div className="sheet-body">{content(sheet)}</div>
-        </section>
+        <BottomSheet key={sheet} title={TITLES[sheet]} onClose={closeSheet} vh={sheet === 'assets' ? 62 : 46} tall={86} header={sheet !== 'assets'}>
+          {content(sheet)}
+        </BottomSheet>
       )}
+      {ctxOpen && <ContextSheet />}
 
       <div className="dock-wrap">
-        {shapeMenu && (
-          <div className="shape-menu" role="menu" aria-label="Shapes">
-            {shapes.map(({ t, I, run }) => (
-              <button
-                key={t}
-                role="menuitem"
-                onClick={() => {
-                  run()
-                  setShapeMenu(false)
-                }}
-              >
-                <I size={20} />
-                <span>{t}</span>
-              </button>
+        {barOn ? (
+          <ContextBar />
+        ) : (
+          <nav className="dock" aria-label="Tools">
+            {dock.map(({ id, label, I, run, on, dot }, i) => (
+              <span key={id} className="dk-item">
+                {(i === 3 || i === 4) && <span className="dk-sep" aria-hidden />}
+                <button className={'dk' + (on ? ' on' : '') + (dot ? ' dot' : '')} aria-label={label} title={label} aria-pressed={on} onClick={run}>
+                  <I size={20} strokeWidth={1.75} />
+                  {on && <span className="dk-label">{SHORT[id]}</span>}
+                </button>
+              </span>
             ))}
-          </div>
+          </nav>
         )}
-        <nav className="dock" aria-label="Tools">
-          {dock.map(({ id, label, I, run, on, dot }, i) => (
-            <span key={id} className="dk-item">
-              {(i === 5 || i === 6) && <span className="dk-sep" aria-hidden />}
-              <button className={'dk' + (on ? ' on' : '') + (dot ? ' dot' : '')} aria-label={label} title={label} aria-pressed={on} onClick={run}>
-                <I size={20} strokeWidth={1.75} />
-                {on && <span className="dk-label">{SHORT[id]}</span>}
-              </button>
-            </span>
-          ))}
-        </nav>
       </div>
 
       {toast && (
