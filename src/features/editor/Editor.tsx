@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentType } from 'react'
-import { LayerIcon } from './icons'
+import { LayerIcon, UploadIcon } from './icons'
 import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
@@ -29,7 +29,7 @@ function useWide() {
 
 const TITLES: Record<Exclude<Sheet, null>, string> = { props: 'Properties', layers: 'Layers', assets: 'Elements', export: 'Export', more: 'More' }
 
-const SHORT: Record<string, string> = { sel: 'Select', elements: 'Elements', text: 'Text', frame: 'Screen', layers: 'Layers', props: 'Style' }
+const SHORT: Record<string, string> = { sel: 'Select', elements: 'Elements', text: 'Text', frame: 'Screen', layers: 'Layers', props: 'Style', upload: 'Upload' }
 
 function MoreMenu() {
   const st = useEditor.getState()
@@ -67,7 +67,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const selCount = useEditor((s) => s.sel.elIds.length)
   const selKey = useEditor((s) => s.sel.elIds.join(','))
   const save = useSave()
-  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements, cropOpen, picker } = useUI()
+  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements, cropOpen, picker, elemPage } = useUI()
   const closeCrop = useCallback(() => useUI.getState().setCropOpen(false), [])
   const cancelPick = useCallback(() => useUI.getState().cancelPick(), [])
   const busyModal = cropOpen || !!picker
@@ -167,7 +167,8 @@ export default function Editor({ onExit }: { onExit: () => void }) {
 
   const dock: { id: string; label: string; I: ComponentType<any>; run: () => void; on?: boolean; dot?: boolean }[] = [
     { id: 'sel', label: 'Select', I: MousePointer2, run: () => { st.select(useEditor.getState().sel.abId, []); setSheet(null) }, on: sheet === null },
-    { id: 'elements', label: 'Elements', I: ShapesIcon, run: () => (sheet === 'assets' ? setSheet(null) : openElements('home')), on: sheet === 'assets' },
+    { id: 'elements', label: 'Elements', I: ShapesIcon, run: () => (sheet === 'assets' && elemPage !== 'upload' ? setSheet(null) : openElements('home')), on: sheet === 'assets' && elemPage !== 'upload' },
+    { id: 'upload', label: 'Upload', I: UploadIcon, run: () => (sheet === 'assets' && elemPage === 'upload' ? setSheet(null) : openElements('upload')), on: sheet === 'assets' && elemPage === 'upload' },
     { id: 'text', label: 'Add text', I: Type, run: () => { setSheet(null); st.addEl('text'); setCtx('edit') } },
     { id: 'frame', label: 'Add screen', I: Frame, run: () => { setSheet(null); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
     { id: 'layers', label: 'Layers', I: LayerIcon, run: () => toggle('layers'), on: sheet === 'layers' },
@@ -178,7 +179,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
     <div className={'editor' + (wide ? ' wide' : '')}>
       <header className="ehead">
         <button className="ic" aria-label="Back to projects" onClick={() => void exit()}>
-          <ArrowLeft size={20} />
+          <ArrowLeft size={18} />
         </button>
         <button
           className="ptitle-btn"
@@ -194,19 +195,19 @@ export default function Editor({ onExit }: { onExit: () => void }) {
           </span>
         </button>
         <button className="ic" aria-label="Undo" disabled={!canUndo} onClick={() => st.undo()}>
-          <Undo2 size={19} />
+          <Undo2 size={17} />
         </button>
         <button className="ic" aria-label="Redo" disabled={!canRedo} onClick={() => st.redo()}>
-          <Redo2 size={19} />
+          <Redo2 size={17} />
         </button>
         <button className="ic" aria-label="Preview prototype" onClick={() => setPreview(true)}>
-          <Play size={19} />
+          <Play size={17} />
         </button>
         <button className="ic dark" aria-label="Export" onClick={() => toggle('export')}>
-          <Download size={18} />
+          <Download size={16} />
         </button>
         <button className="ic" aria-label="More actions" onClick={() => toggle('more')}>
-          <MoreHorizontal size={20} />
+          <MoreHorizontal size={18} />
         </button>
       </header>
       {save.status === 'error' && (
@@ -250,9 +251,9 @@ export default function Editor({ onExit }: { onExit: () => void }) {
           <nav className="dock" aria-label="Tools">
             {dock.map(({ id, label, I, run, on, dot }, i) => (
               <span key={id} className="dk-item">
-                {(i === 3 || i === 4) && <span className="dk-sep" aria-hidden />}
+                {(i === 4 || i === 5) && <span className="dk-sep" aria-hidden />}
                 <button className={'dk' + (on ? ' on' : '') + (dot ? ' dot' : '')} aria-label={label} title={label} aria-pressed={on} onClick={run}>
-                  <I size={20} strokeWidth={1.75} />
+                  <I size={18} strokeWidth={1.6} />
                   {on && <span className="dk-label">{SHORT[id]}</span>}
                 </button>
               </span>

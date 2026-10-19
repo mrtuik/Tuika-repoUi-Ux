@@ -265,7 +265,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const e = ab?.els.find((x) => x.id === sel.elIds[0])
     if (!e) return
     const props: Partial<El> = { fill: e.fill, fillGradient: e.fillGradient, stroke: e.stroke, strokeWidth: e.strokeWidth, strokeOn: e.strokeOn, radius: e.radius, opacity: e.opacity, shadow: { ...e.shadow } }
-    if (e.type === 'text') Object.assign(props, { fontFamily: e.fontFamily, fontWeight: e.fontWeight, align: e.align, lineHeight: e.lineHeight, letterSpacing: e.letterSpacing, underline: e.underline })
+    if (e.type === 'text') Object.assign(props, { fontFamily: e.fontFamily, fontWeight: e.fontWeight, align: e.align, lineHeight: e.lineHeight, letterSpacing: e.letterSpacing, underline: e.underline, italic: e.italic, strike: e.strike })
     set({ styleClip: { from: e.type, props } })
   },
   pasteStyle: () => {
@@ -298,7 +298,7 @@ export const useEditor = create<EditorState>((set, get) => ({
         if ((e.type === 'rect' || e.type === 'image') && (from === 'rect' || from === 'image')) e.radius = props.radius as number
         e.opacity = props.opacity as number
         e.shadow = { ...(props.shadow as El['shadow']) }
-        if (e.type === 'text' && from === 'text') Object.assign(e, { fontFamily: props.fontFamily, fontWeight: props.fontWeight, align: props.align, lineHeight: props.lineHeight, letterSpacing: props.letterSpacing, underline: props.underline })
+        if (e.type === 'text' && from === 'text') Object.assign(e, { fontFamily: props.fontFamily, fontWeight: props.fontWeight, align: props.align, lineHeight: props.lineHeight, letterSpacing: props.letterSpacing, underline: props.underline, italic: props.italic, strike: props.strike })
       }
     })
   },

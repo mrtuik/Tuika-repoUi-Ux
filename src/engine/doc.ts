@@ -53,6 +53,8 @@ export function newEl(type: ElType, patch: Partial<El> = {}): El {
       lineHeight: 1.2,
       letterSpacing: 0,
       underline: false,
+      italic: false,
+      strike: false,
     })
   if (type === 'icon') Object.assign(base, { w: 48, h: 48, fill: '#171717' })
   if (type === 'line' || type === 'arrow') Object.assign(base, { w: 160, h: 0, strokeOn: true, stroke: '#171717', fill: '#171717' })
@@ -196,6 +198,8 @@ function cleanEl(raw: any, warnings: string[], where: string): El | null {
     lineHeight: num(raw.lineHeight, d.lineHeight ?? 1.2),
     letterSpacing: num(raw.letterSpacing, 0),
     underline: bool(raw.underline, false),
+    italic: bool(raw.italic, false),
+    strike: bool(raw.strike, false),
     src: safeSrc(raw.src),
     svg: typeof raw.svg === 'string' && !/<script|on\w+\s*=/i.test(raw.svg) ? raw.svg : undefined,
     shadow: {
@@ -223,6 +227,8 @@ function cleanEl(raw: any, warnings: string[], where: string): El | null {
     delete el.lineHeight
     delete el.letterSpacing
     delete el.underline
+    delete el.italic
+    delete el.strike
   }
   if (raw.src && !el.src) warnings.push(`${where}: image "${el.name}" had an unsupported source and was left empty`)
   return el

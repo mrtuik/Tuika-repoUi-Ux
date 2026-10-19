@@ -93,13 +93,13 @@ export default function FloatBar({ view, size, busy }: { view: { x: number; y: n
     <>
       <div ref={ref} className="floatbar" style={{ left, top }} role="toolbar" aria-label="Element actions" onPointerDown={(e) => e.stopPropagation()}>
         <button aria-label="Duplicate" title="Duplicate" onClick={run(() => st.duplicateSel())}>
-          <CopyPlus size={20} strokeWidth={1.75} />
+          <CopyPlus size={17} strokeWidth={1.6} />
         </button>
         <button aria-label="Delete" title="Delete" onClick={run(() => st.removeSel())}>
-          <Trash2 size={20} strokeWidth={1.75} />
+          <Trash2 size={17} strokeWidth={1.6} />
         </button>
         <button aria-label="More" title="More" aria-expanded={menu} onClick={() => setMenu(!menu)}>
-          <MoreHorizontal size={20} strokeWidth={1.75} />
+          <MoreHorizontal size={17} strokeWidth={1.6} />
         </button>
       </div>
       {menu && (

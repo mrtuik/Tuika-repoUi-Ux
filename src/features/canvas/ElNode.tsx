@@ -271,11 +271,11 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, getSnapB
         text={el.text ?? ''}
         fontSize={el.fontSize}
         fontFamily={el.fontFamily}
-        fontStyle={String(el.fontWeight ?? 400)}
+        fontStyle={(el.italic ? 'italic ' : '') + String(el.fontWeight ?? 400)}
         align={el.align}
         lineHeight={el.lineHeight}
         letterSpacing={el.letterSpacing}
-        textDecoration={el.underline ? 'underline' : ''}
+        textDecoration={[el.underline ? 'underline' : '', el.strike ? 'line-through' : ''].filter(Boolean).join(' ')}
         {...fillProps(el)}
         {...strokeProps}
       />

@@ -51,6 +51,8 @@ export interface El {
   lineHeight?: number
   letterSpacing?: number
   underline?: boolean
+  italic?: boolean
+  strike?: boolean
   src?: string // image data URL
   svg?: string // sanitized svg markup (icons)
   shadow: Shadow

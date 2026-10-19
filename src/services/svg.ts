@@ -59,7 +59,7 @@ export function exportArtboardSvg(ab: Artboard): { svg: string; warnings: string
       const lines = (e.text ?? '').split('\n')
       warnings.push(`"${e.name}": automatic text wrapping is not preserved in SVG`)
       body.push(
-        `<text font-family="${esc(e.fontFamily ?? 'sans-serif')}" font-size="${size}" font-weight="${e.fontWeight ?? 400}" fill="${esc(e.fill)}" text-anchor="${anchor}"${e.underline ? ' text-decoration="underline"' : ''} ${common}>` +
+        `<text font-family="${esc(e.fontFamily ?? 'sans-serif')}" font-size="${size}" font-weight="${e.fontWeight ?? 400}" fill="${esc(e.fill)}" text-anchor="${anchor}"${e.italic ? ' font-style="italic"' : ''}${e.underline || e.strike ? ` text-decoration="${[e.underline ? 'underline' : '', e.strike ? 'line-through' : ''].filter(Boolean).join(' ')}"` : ''} ${common}>` +
           lines.map((l, k) => `<tspan x="${tx}" y="${e.y + size + k * lh}">${esc(l)}</tspan>`).join('') +
           '</text>',
       )

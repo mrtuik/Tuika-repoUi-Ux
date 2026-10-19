@@ -12,7 +12,7 @@
   --red: #d92d20;
   --green: #12805c;
   --canvas: #ececee;
-  --shadow: 0 1px 2px rgba(10, 10, 10, 0.06), 0 8px 24px rgba(10, 10, 10, 0.08);
+  --shadow: 0 1px 2px rgba(10, 10, 10, 0.08);
   --r: 14px;
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -29,7 +29,7 @@
   --red: #ff6b5e;
   --green: #4ade80;
   --canvas: #08080a;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -460,3 +460,139 @@ select.txt { appearance: none; padding-right: 30px; background-image: url("data:
 .rot-handle { position: absolute; z-index: 6; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); color: var(--text); display: inline-flex; align-items: center; justify-content: center; box-shadow: var(--shadow); touch-action: none; user-select: none; -webkit-user-select: none; }
 .rot-handle:active { background: var(--accent); color: var(--on-accent); }
 .rot-deg { position: absolute; z-index: 6; transform: translate(-50%, -100%); padding: 4px 9px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; pointer-events: none; }
+
+/* ---- flatter cards, 8px grid radii: outer cards 2px, small cards 8-12px, active states 8px ---- */
+.dock, .ctxbar { border-radius: 2px; }
+.dk { height: 38px; min-width: 38px; border-radius: 8px; }
+.dk.on { padding: 0 14px; }
+.ctx-item { height: 52px; border-radius: 8px; }
+.ctx-done { width: 44px; height: 44px; border-radius: 8px; }
+.chip { height: 32px; border-radius: 8px; }
+.seg { border-radius: 10px; }
+.seg button { min-height: 32px; border-radius: 7px; }
+.layer { border-radius: 8px; }
+.floatbar { border-radius: 10px; padding: 3px; }
+.floatbar button { height: 36px; border-radius: 8px; }
+.zoom-badge, .fit-btn { border-radius: 8px; }
+.toast { border-radius: 8px; }
+.multi-btn { border-radius: 10px; box-shadow: var(--shadow); }
+.search.card { border-radius: 10px; box-shadow: none; }
+.cat-tile { border-radius: 12px; box-shadow: none; }
+.sheet { border-radius: 14px 14px 0 0; box-shadow: 0 -1px 0 var(--border); }
+.nudge-steps button, .dpad-btn { border-radius: 8px; }
+
+/* ---- text formatting strip above the contextual toolbar ---- */
+.ctxwrap { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.ctxwrap .ctxbar { max-width: calc(100% - 20px); }
+.textbar { display: flex; align-items: center; gap: 2px; width: calc(100% - 20px); background: var(--accent); color: var(--on-accent); border-radius: 10px; padding: 4px; }
+.tb-btn { flex: none; width: 40px; height: 36px; border: 0; background: transparent; color: inherit; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.tb-btn.on { background: rgba(255, 255, 255, 0.22); }
+.tb-btn:active { background: rgba(255, 255, 255, 0.3); }
+.tb-aa { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; }
+.tb-sep { width: 1px; height: 20px; background: rgba(255, 255, 255, 0.28); margin: 0 4px; flex: none; }
+.tb-grow { flex: 1; }
+.tb-colour { width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#f43f5e, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #f43f5e); display: inline-flex; align-items: center; justify-content: center; }
+.tb-colour span { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); }
+
+/* =====================================================================
+   Excalidraw-style toolbars (v9): same proportions, radii, soft shadow
+   and easing as Excalidraw's mobile UI. Tuika keeps its black accent.
+   Excalidraw reference: island radius 8px, padding 4px, 36px tool
+   buttons with 16px icons, 32px compact actions, layered soft shadow.
+   ===================================================================== */
+:root {
+  --island-shadow: 0 0 1px rgba(0, 0, 0, 0.17), 0 0 3px rgba(0, 0, 0, 0.08), 0 7px 14px rgba(0, 0, 0, 0.05);
+  --island-radius: 8px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+:root[data-theme='dark'] { --island-shadow: 0 0 1px rgba(0, 0, 0, 0.6), 0 0 3px rgba(0, 0, 0, 0.4), 0 7px 14px rgba(0, 0, 0, 0.3); }
+button, .dk, .ctx-item, .tb-btn, .ic { touch-action: manipulation; transition: background-color 0.16s var(--ease), color 0.16s var(--ease), transform 0.12s var(--ease), box-shadow 0.16s var(--ease); }
+button:active:not(:disabled) { transform: scale(0.95); }
+.sheet-body, .ctx-items, .dock, .side-body, .fontlist { scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+
+/* header: smaller, calmer buttons */
+.ehead { padding: 2px 6px; gap: 0; }
+.ic { min-width: 34px; height: 34px; border-radius: var(--island-radius); }
+.ic.small { min-width: 28px; height: 28px; border-radius: 6px; }
+.pname { font-size: 14px; }
+.savestat { font-size: 10px; }
+
+/* bottom bar: one floating island like Excalidraw (max 450px, 14px side margin) */
+.dock-wrap { padding: 4px 0 calc(8px + env(safe-area-inset-bottom)); }
+.dock-wrap > * { animation: tk-rise 0.2s var(--ease) both; }
+@keyframes tk-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.dock, .ctxbar { border: 0; border-radius: var(--island-radius); background: var(--panel); box-shadow: var(--island-shadow); padding: 4px; gap: 2px; width: calc(100% - 28px); max-width: 450px; justify-content: space-between; }
+.dock { overflow-x: auto; }
+.dk-item { flex: 1 1 auto; justify-content: center; }
+.dk-sep { height: 24px; margin: 0 2px; background: var(--border); }
+.dk { height: 36px; min-width: 36px; padding: 0 6px; border-radius: 6px; gap: 5px; flex: 1 1 auto; max-width: 52px; }
+.dk.on { padding: 0 12px; max-width: none; flex: 0 0 auto; }
+.dk:not(.on):active { background: var(--bg2); }
+.dk svg { width: 18px; height: 18px; }
+.dk-label { font-size: 12px; font-weight: 600; overflow: hidden; white-space: nowrap; animation: tk-label 0.22s var(--ease) both; }
+@keyframes tk-label { from { max-width: 0; opacity: 0; } to { max-width: 90px; opacity: 1; } }
+.dk.dot::after { top: 6px; right: 6px; width: 6px; height: 6px; }
+
+/* contextual (selected element) bar */
+.ctx-items { gap: 0; }
+.ctx-item { width: 56px; height: 44px; gap: 2px; border-radius: 6px; }
+.ctx-item.on { background: var(--bg3); }
+.ctx-ic { height: 18px; }
+.ctx-ic svg { width: 18px; height: 18px; }
+.ctx-lb { font-size: 10px; font-weight: 500; letter-spacing: 0; color: var(--text2); }
+.ctx-item.on .ctx-lb { color: var(--text); }
+.ctx-dot { width: 18px; height: 18px; }
+.ctx-done { width: 36px; height: 36px; border-radius: 6px; }
+.ctxwrap { gap: 6px; }
+.ctxwrap .ctxbar { width: calc(100% - 28px); }
+
+/* text formatting strip */
+.textbar { width: calc(100% - 28px); max-width: 450px; border-radius: var(--island-radius); padding: 3px; box-shadow: var(--island-shadow); }
+.tb-btn { width: 34px; height: 32px; border-radius: 6px; }
+.tb-aa { font-size: 13px; }
+.tb-colour { width: 18px; height: 18px; }
+.tb-colour span { width: 9px; height: 9px; border-width: 1.5px; }
+
+/* floating option panel (Excalidraw's "Layers / Actions" popover look) + sheets */
+.sheet { border-radius: 12px 12px 0 0; box-shadow: var(--island-shadow); margin-top: -12px; animation: tk-sheet 0.24s var(--ease) both; will-change: transform; }
+.sheet.fit { margin: 0 14px 6px; border-radius: var(--island-radius); max-width: 450px; align-self: center; width: calc(100% - 28px); box-shadow: var(--island-shadow); }
+@keyframes tk-sheet { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.grab-zone { height: 20px; }
+.grab-zone .grab { width: 32px; height: 4px; }
+.sheet-head { padding: 2px 8px 2px 14px; font-size: 14px; }
+.sheet-body { padding: 0 12px 12px; }
+.sheet .psec { padding: 10px 12px 12px; border-radius: var(--island-radius); }
+.psec-h h3, .flabel { font-size: 11px; }
+.group-label, .arr-list-h { font-size: 11px; }
+
+/* inner controls: Excalidraw 32px compact buttons, 8px radii */
+.mini { min-height: 32px; border-radius: 6px; font-size: 12px; padding: 0 10px; }
+.chip, .pill { height: 30px; font-size: 12px; border-radius: 6px; }
+.chipbtn { height: 30px; min-width: 34px; font-size: 12px; border-radius: 6px; }
+.ic.sq, .ic.fill { border-radius: 6px; }
+.seg { border-radius: 8px; padding: 2px; }
+.seg button { min-height: 28px; font-size: 12px; border-radius: 6px; }
+.num { height: 34px; border-radius: 6px; }
+.txt { padding: 7px 10px; border-radius: 6px; font-size: 13px; }
+.aligns .ic { height: 30px; }
+.menu-item { min-height: 42px; font-size: 14px; border-radius: 6px; gap: 10px; }
+.layer-main { min-height: 40px; }
+.lico { width: 26px; height: 26px; border-radius: 6px; }
+.dpad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
+.dpad-btn, .nudge-steps button { border-radius: 6px; }
+.stepper button { width: 34px; height: 32px; }
+.slider::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; }
+.sw { width: 24px; height: 24px; }
+
+/* canvas helpers */
+.canvas-wrap { border-radius: 12px; margin: 0 8px; }
+.zoom-badge, .fit-btn { font-size: 11px; padding: 3px 9px; border-radius: 6px; box-shadow: var(--island-shadow); }
+.multi-btn { width: 36px; height: 36px; border-radius: 8px; box-shadow: var(--island-shadow); border-color: transparent; }
+.floatbar { border: 0; border-radius: var(--island-radius); box-shadow: var(--island-shadow); padding: 2px; animation: tk-pop 0.14s var(--ease) both; }
+.floatbar button { width: 34px; height: 32px; border-radius: 6px; }
+.fb-menu { border: 0; border-radius: var(--island-radius); box-shadow: var(--island-shadow); animation: tk-pop 0.14s var(--ease) both; }
+.fb-menu button { min-height: 38px; font-size: 13px; border-radius: 6px; }
+@keyframes tk-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.rot-handle { width: 36px; height: 36px; border: 0; box-shadow: var(--island-shadow); }
+.toast { font-size: 12px; padding: 8px 14px; border-radius: 8px; animation: tk-rise 0.18s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { .sheet, .dock-wrap > *, .floatbar, .fb-menu, .toast, .dk-label { animation: none !important; } }

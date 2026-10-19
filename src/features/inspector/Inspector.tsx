@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, Lock, Unlock, AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignLeft, AlignRight, AlignStartHorizontal, AlignStartVertical, Copy, Trash2, Underline } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, Lock, Unlock, AlignCenter, AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignLeft, AlignRight, Italic, Strikethrough, AlignStartHorizontal, AlignStartVertical, Copy, Trash2, Underline } from 'lucide-react'
 import { useEditor, selectedEls } from '../../state/editor'
 import type { AlignMode } from '../../state/editor'
 import type { CtxPanel } from '../../state/ui'
@@ -329,8 +329,14 @@ export default function Inspector({ only }: { only?: CtxPanel } = {}) {
                   { v: 'right', label: <AlignRight size={16} />, aria: 'Align text right' },
                 ]}
               />
+              <button className={'ic sq' + (e.italic ? ' on' : '')} aria-label="Italic" aria-pressed={!!e.italic} onClick={() => patch({ italic: !e.italic })}>
+                <Italic size={16} />
+              </button>
               <button className={'ic sq' + (e.underline ? ' on' : '')} aria-label="Underline" aria-pressed={!!e.underline} onClick={() => patch({ underline: !e.underline })}>
                 <Underline size={16} />
+              </button>
+              <button className={'ic sq' + (e.strike ? ' on' : '')} aria-label="Strikethrough" aria-pressed={!!e.strike} onClick={() => patch({ strike: !e.strike })}>
+                <Strikethrough size={16} />
               </button>
             </div>
           </Field>
