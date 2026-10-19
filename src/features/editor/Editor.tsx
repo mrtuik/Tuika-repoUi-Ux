@@ -40,6 +40,7 @@ function MoreMenu() {
   const toggleGrid = useUI((s) => s.toggleGrid)
   const close = () => useUI.getState().setSheet(null)
   const items = [
+    { I: Download, t: 'Export', run: () => useUI.getState().setSheet('export') },
     { I: Frame, t: 'Add artboard', run: () => st.addArtboard() },
     { I: CopyPlus, t: 'Duplicate current artboard', run: () => sel.abId && st.duplicateArtboard(sel.abId) },
     { I: Maximize, t: 'Fit screen to view', run: () => window.dispatchEvent(new Event('tuika-fit')) },
@@ -51,7 +52,7 @@ function MoreMenu() {
     <div className="props">
       <section className="psec flush">
         {items.map(({ I, t, run, off }) => (
-          <button key={t} className="menu-item" disabled={off} onClick={() => { run(); close() }}>
+          <button key={t} className="menu-item" disabled={off} onClick={() => { close(); run() }}>
             <I size={18} /> {t}
           </button>
         ))}
@@ -202,9 +203,6 @@ export default function Editor({ onExit }: { onExit: () => void }) {
         </button>
         <button className="ic" aria-label="Preview prototype" onClick={() => setPreview(true)}>
           <Play size={17} />
-        </button>
-        <button className="ic dark" aria-label="Export" onClick={() => toggle('export')}>
-          <Download size={16} />
         </button>
         <button className="ic" aria-label="More actions" onClick={() => toggle('more')}>
           <MoreHorizontal size={18} />
