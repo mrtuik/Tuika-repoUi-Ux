@@ -113,10 +113,9 @@ function snap1(v: number, size: number, targets: number[], T: number) {
   return best
 }
 
-function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect, onToggleOff, onMoved, onDbl, onAutoHeight, onLongPress, onDragStartSel, onDragMoveSel, onLink }: Props) {
+function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect, onToggleOff, onMoved, onDbl, onAutoHeight, onDragStartSel, onDragMoveSel, onLink }: Props) {
   const iconUrl = useMemo(() => (el.type === 'icon' && el.svg ? svgToDataUrl(el.svg, el.fill) : undefined), [el.type, el.svg, el.fill])
   const textRef = useRef<Konva.Text>(null)
-  const lp = useRef(0)
   const downSel = useRef(false)
   const [fontTick, setFontTick] = useState(0)
 
@@ -159,6 +158,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
   const canSelect = interactive && !el.locked
   const common: any = {
     id: el.id,
+    name: 'el el-' + el.type + (el.type === 'image' && el.mask === 'circle' ? ' circle' : ''),
     x: el.x,
     y: el.y,
     rotation: el.rotation,
@@ -185,23 +185,11 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
           if ((e.evt as TouchEvent).touches?.length > 1) return
           e.cancelBubble = true
           downSel.current = !!onSelect?.(el.id, useUI.getState().multi)
-          // press and hold = start selecting several elements
-          window.clearTimeout(lp.current)
-          lp.current = window.setTimeout(() => {
-            lp.current = 0
-            downSel.current = false
-            navigator.vibrate?.(12)
-            onLongPress?.(el.id)
-          }, 480)
         },
-        onTouchEnd: () => window.clearTimeout(lp.current),
         // in "select multiple" mode a tap on an element that was already selected removes it
         onClick: () => useUI.getState().multi && downSel.current && onToggleOff?.(el.id),
         onTap: () => useUI.getState().multi && downSel.current && onToggleOff?.(el.id),
-        onDragStart: () => {
-          window.clearTimeout(lp.current)
-          onDragStartSel?.(el.id)
-        },
+        onDragStart: () => onDragStartSel?.(el.id),
         onDblClick: () => onDbl?.(el.id),
         onDblTap: () => onDbl?.(el.id),
         onDragMove: (e: Konva.KonvaEventObject<any>) => {
@@ -240,7 +228,9 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
         {...strokeProps}
         sceneFunc={(ctx: any, shape: any) => {
           ctx.beginPath()
-          ctx.ellipse(el.w / 2, el.h / 2, Math.max(0.1, el.w / 2), Math.max(0.1, el.h / 2), 0, 0, Math.PI * 2)
+          const w = shape.width()
+          const h = shape.height()
+          ctx.ellipse(w / 2, h / 2, Math.max(0.1, w / 2), Math.max(0.1, h / 2), 0, 0, Math.PI * 2)
           ctx.closePath()
           ctx.fillStrokeShape(shape)
         }}

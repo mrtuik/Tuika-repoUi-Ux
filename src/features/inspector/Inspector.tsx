@@ -5,6 +5,7 @@ import type { CtxPanel } from '../../state/ui'
 import { brokenLinks } from '../../engine/doc'
 import { ColorField, Field, Num, Section, Seg, Slider, Toggle, parseColor } from './controls'
 import FontPicker from './FontPicker'
+import Nudge from './Nudge'
 import { gradCss } from '../../engine/gradient'
 import { getCachedImage } from '../canvas/ElNode'
 import type { El, Gradient } from '../../engine/types'
@@ -237,6 +238,8 @@ export default function Inspector({ only }: { only?: CtxPanel } = {}) {
         )}
       </Section>
       )}
+
+      {show('nudge') && <Nudge />}
 
       {show('corners') && hasRadius && !multi && (
         <Section title={e.type === 'image' ? 'Shape and corners' : 'Corners'}>

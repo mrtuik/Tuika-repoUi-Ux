@@ -74,7 +74,13 @@ export default function FloatBar({ view, size, busy }: { view: { x: number; y: n
     { k: 'front', I: ArrowUpToLine, t: 'Bring to front', run: () => st.reorder('front') },
     { k: 'back', I: ArrowDownToLine, t: 'Send to back', run: () => st.reorder('back') },
     ...(single ? [{ k: 'lock', I: locked ? Unlock : Lock, t: locked ? 'Unlock' : 'Lock', run: () => st.patchSel({ locked: !locked }) }] : []),
-    { k: 'set', I: SlidersHorizontal, t: 'All settings', run: () => (window.innerWidth < 900 ? useUI.getState().setCtx('all') : useUI.getState().setSheet('props')) },
+    { k: 'set', I: SlidersHorizontal, t: 'All settings', run: () => {
+      const ui = useUI.getState()
+      if (window.innerWidth < 900) {
+        ui.setSheet(null)
+        ui.setCtx('all')
+      } else ui.setSheet('props')
+    } },
   ]
   const menuH = items.length * 44 + 14
   const menuTop = top + H + 6 + menuH <= size.h - 6 ? top + H + 6 : Math.max(6, top - menuH - 6)

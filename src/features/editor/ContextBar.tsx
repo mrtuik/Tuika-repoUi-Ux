@@ -1,4 +1,5 @@
-import { AlignLeft, Check, Crop as CropIcon, Droplets, Group as GroupIcon, Keyboard, Ungroup as UngroupIcon, Layers as LayersIcon, Link2, Move, SlidersHorizontal, Sparkles, SquareDashed, Type } from 'lucide-react'
+import { AlignLeft, Check, Crop as CropIcon, Group as GroupIcon, Keyboard, Ungroup as UngroupIcon, Link2, SquareDashed, Type } from 'lucide-react'
+import { LayerIcon, NudgeIcon, OpacityIcon, PositionIcon, ShadowIcon, StyleIcon } from './icons'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { useEditor, selectedEls } from '../../state/editor'
@@ -19,6 +20,7 @@ export const CTX_TITLES: Record<CtxPanel, string> = {
   opacity: 'Transparency',
   shadow: 'Shadow',
   position: 'Position',
+  nudge: 'Nudge',
   link: 'Prototype link',
   arrange: 'Arrange',
   all: 'All settings',
@@ -64,12 +66,13 @@ export function itemsFor(els: El[]): Item[] {
   if (!multi && (e.type === 'rect' || e.type === 'image')) P('corners', e.type === 'image' ? 'Shape' : 'Corners', <CornerIcon />)
   if (multi && !els.every((x) => x.groupId && x.groupId === e.groupId)) out.push({ id: 'group', label: 'Group', icon: <GroupIcon size={22} strokeWidth={1.75} />, run: () => st().group() })
   if (els.some((x) => x.groupId)) out.push({ id: 'ungroup', label: 'Ungroup', icon: <UngroupIcon size={22} strokeWidth={1.75} />, run: () => st().ungroup() })
-  P('opacity', 'Opacity', <Droplets size={22} strokeWidth={1.75} />)
-  if (!multi && e.type !== 'line' && e.type !== 'arrow') P('shadow', 'Shadow', <Sparkles size={22} strokeWidth={1.75} />)
-  P('position', 'Position', <Move size={22} strokeWidth={1.75} />)
+  P('opacity', 'Opacity', <OpacityIcon />)
+  if (!multi && e.type !== 'line' && e.type !== 'arrow') P('shadow', 'Shadow', <ShadowIcon />)
+  P('position', 'Position', <PositionIcon />)
+  P('nudge', 'Nudge', <NudgeIcon />)
   if (!multi) P('link', 'Link', <Link2 size={22} strokeWidth={1.75} />)
-  P('arrange', 'Arrange', <LayersIcon size={22} strokeWidth={1.75} />)
-  P('all', 'All', <SlidersHorizontal size={22} strokeWidth={1.75} />)
+  P('arrange', 'Arrange', <LayerIcon />)
+  P('all', 'All', <StyleIcon />)
   return out
 }
 
@@ -94,7 +97,12 @@ export function ContextBar() {
             key={it.id}
             className={'ctx-item' + (it.panel && ctx === it.panel ? ' on' : '')}
             aria-pressed={it.panel ? ctx === it.panel : undefined}
-            onClick={() => (it.run ? it.run() : setCtx(ctx === it.panel ? null : (it.panel as CtxPanel)))}
+            onClick={() => {
+              if (it.run) return it.run()
+              // the Layers list and an option panel never stack: opening an option closes the list
+              if (useUI.getState().sheet) useUI.getState().setSheet(null)
+              setCtx(ctx === it.panel ? null : (it.panel as CtxPanel))
+            }}
           >
             <span className="ctx-ic">{it.icon}</span>
             <span className="ctx-lb">{it.label}</span>
@@ -119,7 +127,7 @@ export function ContextSheet() {
   }, [ctx, ok, setCtx])
   if (!ctx || !ok) return null
   return (
-    <BottomSheet key={ctx} title={CTX_TITLES[ctx]} fit vh={ctx === 'all' ? 64 : 46} onClose={() => setCtx(null)} className="ctx">
+    <BottomSheet key={ctx} title={CTX_TITLES[ctx]} fit vh={ctx === 'all' ? 64 : ctx === 'nudge' ? 40 : 46} onClose={() => setCtx(null)} className="ctx">
       <Inspector only={ctx} />
     </BottomSheet>
   )

@@ -434,3 +434,21 @@ select.txt { appearance: none; padding-right: 30px; background-image: url("data:
 .crop-presets::-webkit-scrollbar { display: none; }
 .crop-presets .chipbtn { flex: none; background: rgba(255, 255, 255, 0.12); color: #fff; border-color: transparent; }
 .crop-presets .chipbtn.on { background: #fff; color: #0a0a0a; }
+
+/* ---- nudge panel ---- */
+.nudge { display: flex; gap: 14px; align-items: stretch; }
+.dpad { flex: none; display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
+.dpad-btn { border: 0; background: var(--bg2); border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; color: var(--text); touch-action: none; user-select: none; -webkit-user-select: none; }
+.dpad-btn:active { background: var(--accent); color: var(--on-accent); }
+.dpad-btn.u { grid-column: 2; grid-row: 1; }
+.dpad-btn.l { grid-column: 1; grid-row: 2; }
+.dpad-btn.r { grid-column: 3; grid-row: 2; }
+.dpad-btn.d { grid-column: 2; grid-row: 3; }
+.dpad-mid { grid-column: 2; grid-row: 2; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text2); }
+.nudge-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.nudge-lb { font-size: 12px; font-weight: 600; color: var(--text2); }
+.nudge-steps { display: flex; background: var(--bg2); border-radius: 12px; padding: 3px; gap: 2px; }
+.nudge-steps button { flex: 1; min-height: 32px; border: 0; background: transparent; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--text2); padding: 0; }
+.nudge-steps button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.nudge-read { display: flex; gap: 12px; font-size: 13px; }
+.nudge-read.dim { color: var(--text2); font-size: 12px; }

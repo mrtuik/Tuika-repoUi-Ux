@@ -77,6 +77,42 @@ function makeStyleAnchor(k: number) {
 
 export { stageHandle }
 
+/** While something is dragged or resized, shadows and the hit graph are the expensive part of every frame: pause them, restore after. */
+let paused: { shadows: Konva.Node[]; layer: Konva.Layer | null } | null = null
+function pauseHeavy() {
+  const st = stageHandle.stage
+  if (!st || paused) return
+  const layer = (st.getLayers()[0] as Konva.Layer | undefined) ?? null
+  const shadows = st.find('.el').filter((n) => (n as any).shadowEnabled?.())
+  shadows.forEach((n) => (n as any).shadowEnabled(false))
+  layer?.hitGraphEnabled(false)
+  paused = { shadows, layer }
+}
+function resumeHeavy() {
+  const p = paused
+  paused = null
+  if (!p) return
+  p.shadows.forEach((n) => (n as any).shadowEnabled(true))
+  p.layer?.hitGraphEnabled(true)
+  p.layer?.batchDraw()
+}
+
+const SIZED = ['el-rect', 'el-ellipse', 'el-image', 'el-icon']
+
+/** Resizing a single shape changes its real width/height (not its scale), so rounded corners and masks keep their shape. */
+function liveResize(nodes: Konva.Node[]) {
+  if (nodes.length !== 1) return
+  const n = nodes[0]
+  if (!SIZED.some((c) => n.hasName(c))) return
+  const sx = Math.abs(n.scaleX())
+  const sy = Math.abs(n.scaleY())
+  if (sx === 1 && sy === 1) return
+  const w = Math.max(1, n.width() * sx)
+  const h = Math.max(1, n.height() * sy)
+  n.setAttrs({ width: w, height: h, scaleX: 1, scaleY: 1 })
+  if (n.hasName('circle')) n.setAttr('cornerRadius', Math.min(w, h) / 2)
+}
+
 interface View {
   x: number
   y: number
@@ -205,15 +241,6 @@ const ArtEls = memo(function ArtEls({ ab }: { ab: Artboard }) {
     },
     [abId, groupOf],
   )
-  const onLongPress = useCallback(
-    (id: string) => {
-      const st = useEditor.getState()
-      const cur = st.sel.abId === abId ? st.sel.elIds : []
-      useUI.getState().setMulti(true)
-      st.select(abId, [...new Set([...cur, ...groupOf(id)])])
-    },
-    [abId, groupOf],
-  )
   // while one of several selected elements is dragged, the others follow live
   const dragStart = useRef<{ id: string; x: number; y: number; others: { n: Konva.Node; x: number; y: number }[] } | null>(null)
   const onDragStartSel = useCallback(
@@ -274,7 +301,7 @@ const ArtEls = memo(function ArtEls({ ab }: { ab: Artboard }) {
   return (
     <>
       {ab.els.map((el) => (
-        <ElNode key={el.id} el={el} interactive abW={ab.w} abH={ab.h} getSiblings={getSiblings} onSelect={onSelect} onToggleOff={onToggleOff} onMoved={onMoved} onDbl={onDbl} onAutoHeight={onAutoHeight} onLongPress={onLongPress} onDragStartSel={onDragStartSel} onDragMoveSel={onDragMoveSel} />
+        <ElNode key={el.id} el={el} interactive abW={ab.w} abH={ab.h} getSiblings={getSiblings} onSelect={onSelect} onToggleOff={onToggleOff} onMoved={onMoved} onDbl={onDbl} onAutoHeight={onAutoHeight} onDragStartSel={onDragStartSel} onDragMoveSel={onDragMoveSel} />
       ))}
     </>
   )
@@ -598,8 +625,9 @@ export default function CanvasView() {
       }
       patches.set(el.id, {
         ...base,
-        w: Math.max(1, Math.round(el.w * sx * 10) / 10),
-        h: el.type === 'line' || el.type === 'arrow' ? Math.round(el.h * sy * 10) / 10 : Math.max(1, Math.round(el.h * sy * 10) / 10),
+        // resized shapes already carry their new size on the node (scale was folded in live)
+        w: Math.max(1, Math.round(n.width() * sx * 10) / 10),
+        h: el.type === 'line' || el.type === 'arrow' ? Math.round(el.h * sy * 10) / 10 : Math.max(1, Math.round(n.height() * sy * 10) / 10),
       })
     }
     st.commit((d) => {
@@ -657,8 +685,14 @@ export default function CanvasView() {
         onMouseUp={endGesture}
         onTouchEnd={endGesture}
         onMouseLeave={endGesture}
-        onDragStart={() => setBusy(true)}
-        onDragEnd={() => setBusy(false)}
+        onDragStart={() => {
+          setBusy(true)
+          pauseHeavy()
+        }}
+        onDragEnd={() => {
+          setBusy(false)
+          resumeHeavy()
+        }}
       >
         <Layer>
           {doc.artboards.map((ab) => {
@@ -727,10 +761,16 @@ export default function CanvasView() {
             rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
             ignoreStroke
             anchorStyleFunc={styleAnchor}
-            onTransformStart={() => setBusy(true)}
+            flipEnabled={false}
+            onTransformStart={() => {
+              setBusy(true)
+              pauseHeavy()
+            }}
+            onTransform={() => liveResize(trRef.current?.nodes() ?? [])}
             onTransformEnd={() => {
               setBusy(false)
               onTransformEnd()
+              resumeHeavy()
             }}
             boundBoxFunc={(o, n) => (Math.abs(n.width) < 4 ? o : n)}
           />

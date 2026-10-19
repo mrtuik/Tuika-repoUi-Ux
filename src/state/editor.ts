@@ -197,14 +197,37 @@ export const useEditor = create<EditorState>((set, get) => ({
     get().commit((d) => {
       const ab = d.artboards.find((a) => a.id === sel.abId)
       if (!ab) return
-      for (const e of ab.els) {
-        if (!sel.elIds.includes(e.id)) continue
-        if (mode === 'left') e.x = 0
-        if (mode === 'hcenter') e.x = Math.round((ab.w - e.w) / 2)
-        if (mode === 'right') e.x = ab.w - e.w
-        if (mode === 'top') e.y = 0
-        if (mode === 'vcenter') e.y = Math.round((ab.h - e.h) / 2)
-        if (mode === 'bottom') e.y = ab.h - e.h
+      const picked = ab.els.filter((e) => sel.elIds.includes(e.id))
+      if (!picked.length) return
+      // the selection moves as one block, measured on its visible (rotated) outline
+      let x1 = Infinity
+      let y1 = Infinity
+      let x2 = -Infinity
+      let y2 = -Infinity
+      for (const e of picked) {
+        const r = ((e.rotation || 0) * Math.PI) / 180
+        const c = Math.cos(r)
+        const s = Math.sin(r)
+        for (const [px, py] of [[0, 0], [e.w, 0], [e.w, e.h], [0, e.h]]) {
+          const X = e.x + px * c - py * s
+          const Y = e.y + px * s + py * c
+          x1 = Math.min(x1, X)
+          y1 = Math.min(y1, Y)
+          x2 = Math.max(x2, X)
+          y2 = Math.max(y2, Y)
+        }
+      }
+      let dx = 0
+      let dy = 0
+      if (mode === 'left') dx = -x1
+      if (mode === 'hcenter') dx = (ab.w - (x2 - x1)) / 2 - x1
+      if (mode === 'right') dx = ab.w - x2
+      if (mode === 'top') dy = -y1
+      if (mode === 'vcenter') dy = (ab.h - (y2 - y1)) / 2 - y1
+      if (mode === 'bottom') dy = ab.h - y2
+      for (const e of picked) {
+        e.x = Math.round((e.x + dx) * 10) / 10
+        e.y = Math.round((e.y + dy) * 10) / 10
       }
     })
   },

@@ -87,12 +87,13 @@ export default function Editor({ onExit }: { onExit: () => void }) {
     t.select(t.sel.abId, [])
   }, [])
   const hasSel = selCount > 0
-  const barOn = !wide && hasSel && sheet === null
+  // the element toolbar stays visible under the Layers list, so picking a layer shows its options right away
+  const barOn = !wide && hasSel && (sheet === null || sheet === 'layers')
   const ctxOpen = barOn && ctx !== null
   useBackHandler(preview, closePreview)
   useBackHandler(!preview && !wide && sheet !== null && !busyModal, closeSheet)
   useBackHandler(!preview && ctxOpen && !busyModal, closeCtx)
-  useBackHandler(!preview && barOn && !ctxOpen && !busyModal, deselect)
+  useBackHandler(!preview && barOn && sheet === null && !ctxOpen && !busyModal, deselect)
   useBackHandler(!preview && cropOpen, closeCrop)
   useBackHandler(!preview && !cropOpen && !!picker, cancelPick)
   useBackHandler(!preview && (sheet === null || wide) && !barOn && !busyModal, () => void exit())

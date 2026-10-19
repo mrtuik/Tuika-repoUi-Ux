@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type Sheet = null | 'props' | 'layers' | 'assets' | 'export' | 'more'
 /** Panels of the contextual (Canva-style) toolbar that appears when an element is selected. */
-export type CtxPanel = 'edit' | 'font' | 'colour' | 'format' | 'stroke' | 'corners' | 'opacity' | 'shadow' | 'position' | 'link' | 'arrange' | 'all'
+export type CtxPanel = 'edit' | 'font' | 'colour' | 'format' | 'stroke' | 'corners' | 'opacity' | 'shadow' | 'position' | 'nudge' | 'link' | 'arrange' | 'all'
 export type ElemPage = 'home' | 'shapes' | 'icons' | 'online' | 'photos' | 'library' | 'upload'
 
 interface UI {
