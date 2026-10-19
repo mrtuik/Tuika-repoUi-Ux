@@ -1,69 +1,78 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Layer, Rect, Shape, Stage, Transformer } from 'react-konva'
 import Konva from 'konva'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
+import type { Artboard } from '../../engine/types'
 import ElNode from './ElNode'
 import FloatBar from './FloatBar'
+import PickerOverlay from './PickerOverlay'
+import { BoxSelect } from 'lucide-react'
 import { stageHandle } from './handle'
 
 Konva.hitOnDragEnabled = true
+// phones report 3x density: 2x looks the same on a canvas but is ~45% fewer pixels to repaint
+if (typeof window !== 'undefined') Konva.pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
 
-/** Canva-like handles: round corners, pill-shaped sides, round rotate button below the element. */
-function styleAnchor(a: Konva.Rect) {
-  const side = (w: number, h: number) => {
-    a.width(w)
-    a.height(h)
-    a.offsetX(w / 2)
-    a.offsetY(h / 2)
-    a.cornerRadius(Math.min(w, h) / 2)
+/** Canva-like handles: round corners, pill-shaped sides, round rotate button below the element. `k` shrinks them on small elements. */
+function makeStyleAnchor(k: number) {
+  return function styleAnchor(a: Konva.Rect) {
+    const side = (w: number, h: number) => {
+      a.width(w)
+      a.height(h)
+      a.offsetX(w / 2)
+      a.offsetY(h / 2)
+      a.cornerRadius(Math.min(w, h) / 2)
+    }
+    if (a.hasName('top-center') || a.hasName('bottom-center')) side(34 * k, 11 * k)
+    else if (a.hasName('middle-left') || a.hasName('middle-right')) side(11 * k, 34 * k)
+    else if (a.hasName('rotater')) {
+      const D = 32 * k
+      const r = D / 2
+      const u = k
+      side(D, D)
+      a.sceneFunc((ctx: any, shape: any) => {
+        ctx.beginPath()
+        ctx.arc(r, r, r, 0, Math.PI * 2)
+        ctx.closePath()
+        ctx.fillStrokeShape(shape)
+        const c = ctx._context as CanvasRenderingContext2D
+        c.save()
+        c.strokeStyle = '#171717'
+        c.fillStyle = '#171717'
+        c.lineWidth = 1.8 * u
+        c.lineCap = 'round'
+        c.beginPath()
+        c.arc(r, r, 6.5 * u, Math.PI * 0.15, Math.PI * 1.05)
+        c.stroke()
+        c.beginPath()
+        c.arc(r, r, 6.5 * u, Math.PI * 1.15, Math.PI * 2.05)
+        c.stroke()
+        c.beginPath()
+        c.moveTo(r + 9.5 * u, r + 1 * u)
+        c.lineTo(r + 3.5 * u, r + 1 * u)
+        c.lineTo(r + 6.5 * u, r + 5 * u)
+        c.fill()
+        c.beginPath()
+        c.moveTo(r - 9.5 * u, r - 1 * u)
+        c.lineTo(r - 3.5 * u, r - 1 * u)
+        c.lineTo(r - 6.5 * u, r - 5 * u)
+        c.fill()
+        c.restore()
+      })
+      a.hitFunc((ctx: any, shape: any) => {
+        ctx.beginPath()
+        ctx.arc(r, r, r + 6, 0, Math.PI * 2)
+        ctx.closePath()
+        ctx.fillStrokeShape(shape)
+      })
+    } else {
+      side(18 * k, 18 * k)
+    }
+    a.shadowColor('rgba(0,0,0,0.35)')
+    a.shadowBlur(4)
+    a.shadowOffsetY(1)
   }
-  if (a.hasName('top-center') || a.hasName('bottom-center')) side(34, 11)
-  else if (a.hasName('middle-left') || a.hasName('middle-right')) side(11, 34)
-  else if (a.hasName('rotater')) {
-    side(32, 32)
-    a.sceneFunc((ctx: any, shape: any) => {
-      const r = 16
-      ctx.beginPath()
-      ctx.arc(r, r, r, 0, Math.PI * 2)
-      ctx.closePath()
-      ctx.fillStrokeShape(shape)
-      const c = ctx._context as CanvasRenderingContext2D
-      c.save()
-      c.strokeStyle = '#171717'
-      c.lineWidth = 1.8
-      c.lineCap = 'round'
-      c.beginPath()
-      c.arc(r, r, 6.5, Math.PI * 0.15, Math.PI * 1.05)
-      c.stroke()
-      c.beginPath()
-      c.arc(r, r, 6.5, Math.PI * 1.15, Math.PI * 2.05)
-      c.stroke()
-      c.fillStyle = '#171717'
-      c.beginPath()
-      c.moveTo(r + 6.5 + 3, r + 1)
-      c.lineTo(r + 6.5 - 3, r + 1)
-      c.lineTo(r + 6.5, r + 5)
-      c.fill()
-      c.beginPath()
-      c.moveTo(r - 6.5 - 3, r - 1)
-      c.lineTo(r - 6.5 + 3, r - 1)
-      c.lineTo(r - 6.5, r - 5)
-      c.fill()
-      c.restore()
-    })
-    a.hitFunc((ctx: any, shape: any) => {
-      ctx.beginPath()
-      ctx.arc(16, 16, 20, 0, Math.PI * 2)
-      ctx.closePath()
-      ctx.fillStrokeShape(shape)
-    })
-  } else {
-    side(18, 18)
-  }
-  a.shadowColor('rgba(0,0,0,0.35)')
-  a.shadowBlur(4)
-  a.shadowOffsetY(1)
 }
 
 export { stageHandle }
@@ -145,7 +154,7 @@ export function renderArtboardImage(abId: string, pixelRatio: number, mime: 'ima
   const prev = { sx: st.scaleX(), sy: st.scaleY(), x: st.x(), y: st.y() }
   const tr = st.findOne('Transformer') as Konva.Transformer | undefined
   const bg = st.findOne('#bg-' + abId)
-  const grid = st.find('.grid')
+  const grid = st.find('.grid').concat(st.find('.abshadow'))
   try {
     tr?.visible(false)
     grid.forEach((g) => g.visible(false))
@@ -163,6 +172,114 @@ export function renderArtboardImage(abId: string, pixelRatio: number, mime: 'ima
   }
 }
 
+/** Elements of one screen. Callbacks are stable so memoised ElNodes skip re-rendering while zooming, panning or editing other elements. */
+const ArtEls = memo(function ArtEls({ ab }: { ab: Artboard }) {
+  const elsRef = useRef(ab.els)
+  elsRef.current = ab.els
+  const abId = ab.id
+  const getSiblings = useCallback(() => elsRef.current, [])
+  const groupOf = useCallback((id: string) => {
+    const g = elsRef.current.find((e) => e.id === id)?.groupId
+    return g ? elsRef.current.filter((e) => e.groupId === g).map((e) => e.id) : [id]
+  }, [])
+  /** Returns true when the element was already part of the selection before this press. */
+  const onSelect = useCallback(
+    (id: string, add: boolean): boolean => {
+      const st = useEditor.getState()
+      const cur = st.sel
+      const ids = groupOf(id)
+      const was = cur.abId === abId && cur.elIds.includes(id)
+      if (add && cur.abId === abId) {
+        if (!was) st.select(abId, [...new Set([...cur.elIds, ...ids])])
+      } else if (!(was && cur.elIds.length > 1)) st.select(abId, ids)
+      return was
+    },
+    [abId, groupOf],
+  )
+  const onToggleOff = useCallback(
+    (id: string) => {
+      const st = useEditor.getState()
+      if (st.sel.abId !== abId) return
+      const ids = groupOf(id)
+      st.select(abId, st.sel.elIds.filter((i) => !ids.includes(i)))
+    },
+    [abId, groupOf],
+  )
+  const onLongPress = useCallback(
+    (id: string) => {
+      const st = useEditor.getState()
+      const cur = st.sel.abId === abId ? st.sel.elIds : []
+      useUI.getState().setMulti(true)
+      st.select(abId, [...new Set([...cur, ...groupOf(id)])])
+    },
+    [abId, groupOf],
+  )
+  // while one of several selected elements is dragged, the others follow live
+  const dragStart = useRef<{ id: string; x: number; y: number; others: { n: Konva.Node; x: number; y: number }[] } | null>(null)
+  const onDragStartSel = useCallback(
+    (id: string) => {
+      const st = useEditor.getState()
+      const stage = stageHandle.stage
+      dragStart.current = null
+      if (!stage || st.sel.abId !== abId || !st.sel.elIds.includes(id) || st.sel.elIds.length < 2) return
+      const me = stage.findOne('#' + id)
+      if (!me) return
+      const others = st.sel.elIds
+        .filter((o) => o !== id)
+        .map((o) => stage.findOne('#' + o))
+        .filter(Boolean)
+        .map((n) => ({ n: n as Konva.Node, x: (n as Konva.Node).x(), y: (n as Konva.Node).y() }))
+      dragStart.current = { id, x: me.x(), y: me.y(), others }
+    },
+    [abId],
+  )
+  const onDragMoveSel = useCallback((id: string, x: number, y: number) => {
+    const d = dragStart.current
+    if (!d || d.id !== id) return
+    for (const o of d.others) {
+      o.n.x(o.x + (x - d.x))
+      o.n.y(o.y + (y - d.y))
+    }
+  }, [])
+  const onMoved = useCallback(
+    (id: string, x: number, y: number) => {
+      const st = useEditor.getState()
+      const base = elsRef.current.find((e) => e.id === id)
+      if (!base) return
+      // dragging one of several selected elements moves all of them by the same delta
+      const dx = x - base.x
+      const dy = y - base.y
+      const ids = st.sel.elIds.includes(id) && st.sel.abId === abId ? st.sel.elIds : [id]
+      st.commit((d) => {
+        const a = d.artboards.find((q) => q.id === abId)
+        if (!a) return
+        for (const e of a.els)
+          if (ids.includes(e.id)) {
+            e.x = Math.round((e.x + dx) * 10) / 10
+            e.y = Math.round((e.y + dy) * 10) / 10
+          }
+      })
+    },
+    [abId],
+  )
+  const onDbl = useCallback(
+    (id: string) => {
+      const el = elsRef.current.find((x) => x.id === id)
+      if (el?.type === 'text' && window.innerWidth < 900) useUI.getState().setCtx('edit')
+      else useUI.getState().setSheet('props')
+    },
+    [],
+  )
+  const onAutoHeight = useCallback((id: string, h: number) => useEditor.getState().syncH(abId, id, h), [abId])
+  return (
+    <>
+      {ab.els.map((el) => (
+        <ElNode key={el.id} el={el} interactive abW={ab.w} abH={ab.h} getSiblings={getSiblings} onSelect={onSelect} onToggleOff={onToggleOff} onMoved={onMoved} onDbl={onDbl} onAutoHeight={onAutoHeight} onLongPress={onLongPress} onDragStartSel={onDragStartSel} onDragMoveSel={onDragMoveSel} />
+      ))}
+    </>
+  )
+})
+
 export default function CanvasView() {
   const doc = useEditor((s) => s.doc)!
   const sel = useEditor((s) => s.sel)
@@ -176,11 +293,18 @@ export default function CanvasView() {
   const viewRef = useRef(view)
   const fitRef = useRef(0)
   const [busy, setBusy] = useState(false)
+  const [moving, setMoving] = useState(false)
+  const movingT = useRef(0)
+  const badge = useRef<HTMLDivElement>(null)
   sizeRef_.current = size
   const rafRef = useRef(0)
   const animRef = useRef(0)
   const pinch = useRef<{ d: number; cx: number; cy: number } | null>(null)
   const pan = useRef<{ x: number; y: number; moved: number } | null>(null)
+  const multi = useUI((s) => s.multi)
+  const picker = useUI((s) => s.picker)
+  const mq = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const mqRect = useRef<Konva.Rect>(null)
 
   // Live view changes go straight to the Konva stage (no React render per pointer move),
   // then sync to React state once per frame. This keeps panning smooth and jitter-free.
@@ -193,11 +317,14 @@ export default function CanvasView() {
       st.scale({ x: v.s, y: v.s })
       st.batchDraw()
     }
-    if (!rafRef.current)
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = 0
-        setView(viewRef.current)
-      })
+    if (badge.current) badge.current.textContent = Math.round(v.s * 100) + '%'
+    // React only hears about the new view when the gesture settles: no re-render per frame
+    setMoving((m) => m || true)
+    clearTimeout(movingT.current)
+    movingT.current = window.setTimeout(() => {
+      setView(viewRef.current)
+      setMoving(false)
+    }, 140)
   }, [])
 
   const animateTo = useCallback(
@@ -222,6 +349,7 @@ export default function CanvasView() {
     () => () => {
       cancelAnimationFrame(rafRef.current)
       cancelAnimationFrame(animRef.current)
+      clearTimeout(movingT.current)
     },
     [],
   )
@@ -250,6 +378,25 @@ export default function CanvasView() {
     setSize({ w: el.clientWidth, h: el.clientHeight })
     return () => ro.disconnect()
   }, [])
+
+  // the Android WebView can drop canvas pixels while the app is in the background: repaint when it comes back
+  useEffect(() => {
+    const redraw = () => {
+      if (document.visibilityState !== 'visible') return
+      const st = stageHandle.stage
+      if (!st) return
+      st.getLayers().forEach((l) => l.draw())
+      moveView(viewRef.current)
+    }
+    document.addEventListener('visibilitychange', redraw)
+    window.addEventListener('pageshow', redraw)
+    window.addEventListener('focus', redraw)
+    return () => {
+      document.removeEventListener('visibilitychange', redraw)
+      window.removeEventListener('pageshow', redraw)
+      window.removeEventListener('focus', redraw)
+    }
+  }, [moveView])
 
   // redraw once bundled web fonts are ready so text measures with the real font
   useEffect(() => {
@@ -330,9 +477,52 @@ export default function CanvasView() {
     moveView({ ...v, x: v.x + dx, y: v.y + dy })
   }
 
+  // drag-select (only while "select multiple" is on)
+  const docPoint = () => {
+    const st = stageHandle.stage
+    const p = st?.getPointerPosition()
+    if (!st || !p) return null
+    return { x: (p.x - st.x()) / st.scaleX(), y: (p.y - st.y()) / st.scaleY() }
+  }
+  const moveMarquee = () => {
+    const m = mq.current
+    const r = mqRect.current
+    const p = docPoint()
+    if (!m || !r || !p) return
+    m.moved = m.moved || Math.hypot(p.x - m.x, p.y - m.y) * viewRef.current.s > 6
+    if (!m.moved) return
+    r.setAttrs({ visible: true, x: Math.min(m.x, p.x), y: Math.min(m.y, p.y), width: Math.abs(p.x - m.x), height: Math.abs(p.y - m.y), strokeWidth: 1.2 / viewRef.current.s, dash: [4 / viewRef.current.s, 3 / viewRef.current.s] })
+    r.getLayer()?.batchDraw()
+  }
+  const endMarquee = () => {
+    const m = mq.current
+    const r = mqRect.current
+    mq.current = null
+    if (!m || !r) return
+    const box = { x: r.x(), y: r.y(), w: r.width(), h: r.height() }
+    const was = m.moved
+    r.visible(false)
+    r.getLayer()?.batchDraw()
+    if (!was) return
+    const st = useEditor.getState()
+    const ab = st.doc?.artboards.find((a) => a.id === st.sel.abId)
+    if (!ab) return
+    const hit = ab.els.filter((e) => e.visible && !e.locked && e.x + e.w >= box.x - ab.x && e.x <= box.x + box.w - ab.x && e.y + e.h >= box.y - ab.y && e.y <= box.y + box.h - ab.y)
+    const ids = new Set(hit.map((e) => e.id))
+    for (const e of hit) if (e.groupId) for (const o of ab.els) if (o.groupId === e.groupId && !o.locked) ids.add(o.id)
+    st.select(ab.id, [...ids])
+  }
+
   const onTouchMove = (e: Konva.KonvaEventObject<TouchEvent>) => {
     const t = e.evt.touches
+    if (mq.current && t.length === 1) {
+      e.evt.preventDefault()
+      moveMarquee()
+      return
+    }
     if (t.length === 2) {
+      mq.current = null
+      mqRect.current?.visible(false)
       e.evt.preventDefault()
       ;(Konva as any).DD?.node?.stopDrag?.()
       const rect = wrap.current!.getBoundingClientRect()
@@ -362,13 +552,24 @@ export default function CanvasView() {
     cancelAnimationFrame(animRef.current)
     if (isStage) useEditor.getState().select(useEditor.getState().sel.abId, [])
     const ev = e.evt
+    if (useUI.getState().multi) {
+      if (!('touches' in ev) || ev.touches.length === 1) {
+        const p = docPoint()
+        if (p) mq.current = { x: p.x, y: p.y, moved: false }
+      }
+      return
+    }
     if ('touches' in ev) {
       if (ev.touches.length === 1) pan.current = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, moved: 0 }
     } else pan.current = { x: (ev as MouseEvent).clientX, y: (ev as MouseEvent).clientY, moved: 0 }
   }
-  const onMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => panBy(e.evt.clientX, e.evt.clientY)
+  const onMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (mq.current) moveMarquee()
+    else panBy(e.evt.clientX, e.evt.clientY)
+  }
 
   const endGesture = () => {
+    endMarquee()
     pan.current = null
     pinch.current = null
   }
@@ -387,10 +588,16 @@ export default function CanvasView() {
       const sy = n.scaleY()
       n.scaleX(1)
       n.scaleY(1)
+      const base = { x: Math.round(n.x() * 10) / 10, y: Math.round(n.y() * 10) / 10, rotation: Math.round(n.rotation() * 10) / 10 }
+      if (el.type === 'text') {
+        // corners scale the font like Canva, side handles only change the line width; height follows the content
+        const corner = Math.abs(sx - sy) < 0.03
+        const f = corner ? sx : sy !== 1 && Math.abs(sx - 1) < 0.03 ? sy : 1
+        patches.set(el.id, { ...base, w: Math.max(8, Math.round(el.w * sx * 10) / 10), fontSize: Math.max(4, Math.round((el.fontSize ?? 16) * f)) })
+        continue
+      }
       patches.set(el.id, {
-        x: Math.round(n.x() * 10) / 10,
-        y: Math.round(n.y() * 10) / 10,
-        rotation: Math.round(n.rotation() * 10) / 10,
+        ...base,
         w: Math.max(1, Math.round(el.w * sx * 10) / 10),
         h: el.type === 'line' || el.type === 'arrow' ? Math.round(el.h * sy * 10) / 10 : Math.max(1, Math.round(el.h * sy * 10) / 10),
       })
@@ -403,7 +610,32 @@ export default function CanvasView() {
   }
 
   const store = useEditor.getState
-  const snapT = 8 / view.s
+
+  // handles shrink (and the side ones disappear) when the selected element is small on screen
+  const box = useMemo(() => {
+    const ab = doc.artboards.find((a) => a.id === sel.abId)
+    const picked = (ab?.els ?? []).filter((e) => sel.elIds.includes(e.id) && !e.locked && e.visible)
+    if (!picked.length) return { w: 999, h: 999 }
+    let x1 = Infinity
+    let y1 = Infinity
+    let x2 = -Infinity
+    let y2 = -Infinity
+    for (const e of picked) {
+      x1 = Math.min(x1, e.x)
+      y1 = Math.min(y1, e.y)
+      x2 = Math.max(x2, e.x + e.w)
+      y2 = Math.max(y2, e.y + e.h)
+    }
+    return { w: (x2 - x1) * view.s, h: (y2 - y1) * view.s }
+  }, [doc, sel, view.s])
+  const k = clamp(Math.min(box.w, box.h) / 110, 0.5, 1)
+  const styleAnchor = useMemo(() => makeStyleAnchor(k), [k])
+  const anchors = useMemo(() => {
+    const a = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+    if (box.w >= 64) a.push('top-center', 'bottom-center')
+    if (box.h >= 64) a.push('middle-left', 'middle-right')
+    return a
+  }, [box.w >= 64, box.h >= 64])
 
   return (
     <div className="canvas-wrap" ref={wrap}>
@@ -411,8 +643,8 @@ export default function CanvasView() {
         ref={(r: any) => {
           stageHandle.stage = r
         }}
-        width={size.w}
-        height={size.h}
+        width={Math.max(1, size.w)}
+        height={Math.max(1, size.h)}
         x={view.x}
         y={view.y}
         scaleX={view.s}
@@ -433,15 +665,15 @@ export default function CanvasView() {
             const active = ab.id === activeId
             return (
               <Group key={ab.id} id={'grp-' + ab.id} name="abgroup" x={ab.x} y={ab.y} visible={active} listening={active}>
+                <Rect name="abshadow" x={-4} y={-4} width={ab.w + 8} height={ab.h + 8} cornerRadius={4} fill="rgba(0,0,0,0.035)" listening={false} perfectDrawEnabled={false} />
+                <Rect name="abshadow" x={-1.5} y={-1.5} width={ab.w + 3} height={ab.h + 3} cornerRadius={2} fill="rgba(0,0,0,0.05)" listening={false} perfectDrawEnabled={false} />
                 <Rect
                   id={'bg-' + ab.id}
                   name="abbg"
                   width={ab.w}
                   height={ab.h}
                   fill={ab.bg}
-                  shadowColor="#000"
-                  shadowBlur={14}
-                  shadowOpacity={0.12}
+                  perfectDrawEnabled={false}
                   onMouseDown={(e) => {
                     store().select(ab.id, [])
                   }}
@@ -471,46 +703,7 @@ export default function CanvasView() {
                   />
                 )}
                 <Group clipX={0} clipY={0} clipWidth={ab.w} clipHeight={ab.h}>
-                  {ab.els.map((el) => (
-                    <ElNode
-                      key={el.id}
-                      el={el}
-                      interactive
-                      abW={ab.w}
-                      abH={ab.h}
-                      siblings={ab.els}
-                      snapT={snapT}
-                      onSelect={(id, add) => {
-                        const cur = store().sel
-                        if (add && cur.abId === ab.id) {
-                          const has = cur.elIds.includes(id)
-                          store().select(ab.id, has ? cur.elIds.filter((i) => i !== id) : [...cur.elIds, id])
-                        } else if (!(cur.abId === ab.id && cur.elIds.includes(id) && cur.elIds.length > 1)) store().select(ab.id, [id])
-                      }}
-                      onMoved={(id, x, y) => {
-                        const cur = store().sel
-                        // dragging one of several selected elements moves all of them by the same delta
-                        const base = ab.els.find((e) => e.id === id)
-                        if (!base) return
-                        const dx = x - base.x
-                        const dy = y - base.y
-                        const ids = cur.elIds.includes(id) && cur.abId === ab.id ? cur.elIds : [id]
-                        store().commit((d) => {
-                          const a = d.artboards.find((q) => q.id === ab.id)
-                          if (!a) return
-                          for (const e of a.els) if (ids.includes(e.id)) {
-                            e.x = Math.round((e.x + dx) * 10) / 10
-                            e.y = Math.round((e.y + dy) * 10) / 10
-                          }
-                        })
-                      }}
-                      onDbl={(id) => {
-                        const el = ab.els.find((x) => x.id === id)
-                        if (el?.type === 'text' && window.innerWidth < 900) useUI.getState().setCtx('edit')
-                        else useUI.getState().setSheet('props')
-                      }}
-                    />
-                  ))}
+                  <ArtEls ab={ab} />
                 </Group>
               </Group>
             )
@@ -526,10 +719,11 @@ export default function CanvasView() {
             anchorStroke="#a1a1aa"
             anchorStrokeWidth={1.5}
             anchorFill="#FFFFFF"
-            anchorSize={18}
-            anchorCornerRadius={9}
+            anchorSize={18 * k}
+            anchorCornerRadius={9 * k}
+            enabledAnchors={anchors}
             rotateAnchorAngle={180}
-            rotateAnchorOffset={34}
+            rotateAnchorOffset={34 * k}
             rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
             ignoreStroke
             anchorStyleFunc={styleAnchor}
@@ -540,10 +734,25 @@ export default function CanvasView() {
             }}
             boundBoxFunc={(o, n) => (Math.abs(n.width) < 4 ? o : n)}
           />
+          <Rect ref={mqRect} visible={false} listening={false} stroke="#171717" fill="rgba(23,23,23,0.07)" strokeWidth={1} />
         </Layer>
       </Stage>
-      <FloatBar view={view} size={size} busy={busy} />
-      <div className="zoom-badge" aria-live="polite">
+      <FloatBar view={view} size={size} busy={busy || moving} />
+      <button
+        className={'multi-btn' + (multi ? ' on' : '')}
+        aria-pressed={multi}
+        aria-label="Select multiple elements"
+        title="Select multiple"
+        onClick={() => {
+          const on = !useUI.getState().multi
+          useUI.getState().setMulti(on)
+          if (on) useUI.getState().say('Tap elements to add them, or drag on empty space to select an area')
+        }}
+      >
+        <BoxSelect size={20} />
+      </button>
+      {picker && <PickerOverlay />}
+      <div className="zoom-badge" aria-live="polite" ref={badge}>
         {Math.round(view.s * 100)}%
       </div>
       <button className="fit-btn" aria-label="Fit screen to view" onClick={fit}>

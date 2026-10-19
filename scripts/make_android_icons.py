@@ -5,6 +5,7 @@ Usage: python3 scripts/make_android_icons.py [android_res_dir] [--preview out_di
 Run in CI after `npx cap add android`. Needs Pillow.
 """
 import os
+import re
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -50,6 +51,35 @@ def splash(w, h):
     return sp.convert("RGB")
 
 
+def patch_launch_theme(res):
+    """Splash: black status/navigation bar (instead of the default gray) and black splash background."""
+    p = os.path.join(res, "values", "styles.xml")
+    if not os.path.exists(p):
+        return False
+    s = open(p, encoding="utf-8").read()
+    m = re.search(r'(<style\s+name="AppTheme\.NoActionBarLaunch"[^>]*>)(.*?)(</style>)', s, re.S)
+    if not m:
+        return False
+    body = m.group(2)
+    wanted = [
+        ("android:statusBarColor", "#000000"),
+        ("android:navigationBarColor", "#000000"),
+        ("android:windowLightStatusBar", "false"),
+        ("android:windowLightNavigationBar", "false"),
+        ("windowSplashScreenBackground", "#000000"),
+    ]
+    for name, val in wanted:
+        pat = r'<item\s+name="%s">.*?</item>' % re.escape(name)
+        item = '<item name="%s">%s</item>' % (name, val)
+        if re.search(pat, body):
+            body = re.sub(pat, item, body)
+        else:
+            body = body.rstrip() + "\n        " + item + "\n    "
+    s = s[: m.start()] + m.group(1) + body + m.group(3) + s[m.end():]
+    open(p, "w", encoding="utf-8").write(s)
+    return True
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     preview = None
@@ -92,6 +122,7 @@ def main():
                 w, h = Image.open(path).size
                 splash(w, h).save(path)
                 done += 1
+    print("launch theme patched:", patch_launch_theme(res))
     print(f"wrote {done} Tuika icon/splash files into {res}")
 
 

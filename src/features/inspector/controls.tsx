@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronDown, Pipette, Plus } from 'lucide-react'
+import { useUI } from '../../state/ui'
 
 /* ---------- layout primitives ---------- */
 
@@ -220,20 +221,17 @@ function Picker({ value, onChange, palette, onSave }: { value: string; onChange:
         <span className="knob" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, background: safe }} />
       </Drag>
       <div className="hue-row">
-        {ED && (
-          <button
-            className="ic small"
-            aria-label="Pick color from screen"
-            onClick={() =>
-              new ED()
-                .open()
-                .then((res: { sRGBHex: string }) => onChange(res.sRGBHex.toUpperCase()))
-                .catch(() => {})
-            }
-          >
-            <Pipette size={16} />
-          </button>
-        )}
+        <button
+          className="ic small"
+          aria-label="Pick color from screen"
+          title="Pick color from screen"
+          onClick={() => {
+            if (ED) new ED().open().then((res: { sRGBHex: string }) => onChange(res.sRGBHex.toUpperCase())).catch(() => {})
+            else useUI.getState().startPick((c) => onChange(c))
+          }}
+        >
+          <Pipette size={16} />
+        </button>
         <Drag className="hue" onMove={(x) => emit(x * 359.99, hsv.s || 0.0001, hsv.v || 0.0001)}>
           <span className="knob" style={{ left: `${(hsv.h / 360) * 100}%`, background: `hsl(${hsv.h}, 100%, 50%)` }} />
         </Drag>

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, Clipboard, Copy, CopyPlus, Lock, MoreHorizontal, SlidersHorizontal, Trash2, Unlock } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, BoxSelect, Brush, ChevronDown, ChevronUp, Clipboard, Copy, CopyPlus, Crop, Group, Lock, MoreHorizontal, Paintbrush, SlidersHorizontal, Trash2, Unlock, Ungroup } from 'lucide-react'
 import { useEditor, selectedEls } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import { stageHandle } from './handle'
@@ -17,6 +17,7 @@ export default function FloatBar({ view, size, busy }: { view: { x: number; y: n
   const sel = useEditor((s) => s.sel)
   const doc = useEditor((s) => s.doc)
   const hasClip = useEditor((s) => !!s.clip)
+  const hasStyle = useEditor((s) => !!s.styleClip)
   const [box, setBox] = useState<Box | null>(null)
   const [menu, setMenu] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -58,7 +59,24 @@ export default function FloatBar({ view, size, busy }: { view: { x: number; y: n
   const left = Math.min(Math.max(box.x + box.w / 2 - bw / 2, 8), Math.max(8, size.w - bw - 8))
   const single = els.length === 1
   const locked = single && els[0].locked
-  const menuH = (single ? 8 : 7) * 44 + 14
+  const anyGroup = els.some((x) => x.groupId)
+  const items: { k: string; I: typeof Copy; t: string; run: () => void; off?: boolean }[] = [
+    { k: 'copy', I: Copy, t: 'Copy', run: () => st.copy() },
+    { k: 'paste', I: Clipboard, t: 'Paste', run: () => st.paste(), off: !hasClip },
+    { k: 'cs', I: Paintbrush, t: 'Copy style', run: () => st.copyStyle() },
+    { k: 'ps', I: Brush, t: 'Paste style', run: () => st.pasteStyle(), off: !hasStyle },
+    ...(els.length > 1 ? [{ k: 'grp', I: Group, t: 'Group', run: () => st.group() }] : []),
+    ...(anyGroup ? [{ k: 'ung', I: Ungroup, t: 'Ungroup', run: () => st.ungroup() }] : []),
+    ...(single && els[0].type === 'image' ? [{ k: 'crop', I: Crop, t: 'Crop image', run: () => useUI.getState().setCropOpen(true) }] : []),
+    { k: 'all', I: BoxSelect, t: 'Select all', run: () => st.selectAll() },
+    { k: 'up', I: ChevronUp, t: 'Bring forward', run: () => st.reorder('up') },
+    { k: 'down', I: ChevronDown, t: 'Send backward', run: () => st.reorder('down') },
+    { k: 'front', I: ArrowUpToLine, t: 'Bring to front', run: () => st.reorder('front') },
+    { k: 'back', I: ArrowDownToLine, t: 'Send to back', run: () => st.reorder('back') },
+    ...(single ? [{ k: 'lock', I: locked ? Unlock : Lock, t: locked ? 'Unlock' : 'Lock', run: () => st.patchSel({ locked: !locked }) }] : []),
+    { k: 'set', I: SlidersHorizontal, t: 'All settings', run: () => (window.innerWidth < 900 ? useUI.getState().setCtx('all') : useUI.getState().setSheet('props')) },
+  ]
+  const menuH = items.length * 44 + 14
   const menuTop = top + H + 6 + menuH <= size.h - 6 ? top + H + 6 : Math.max(6, top - menuH - 6)
   const run = (fn: () => void) => () => {
     setMenu(false)
@@ -80,32 +98,11 @@ export default function FloatBar({ view, size, busy }: { view: { x: number; y: n
       </div>
       {menu && (
         <div className="fb-menu" style={{ left: Math.min(Math.max(left, 8), Math.max(8, size.w - 206)), top: menuTop, maxHeight: size.h - 12, overflowY: 'auto' }} role="menu" onPointerDown={(e) => e.stopPropagation()}>
-          <button role="menuitem" onClick={run(() => st.copy())}>
-            <Copy size={17} /> Copy
-          </button>
-          <button role="menuitem" disabled={!hasClip} onClick={run(() => st.paste())}>
-            <Clipboard size={17} /> Paste
-          </button>
-          <button role="menuitem" onClick={run(() => st.reorder('up'))}>
-            <ChevronUp size={17} /> Bring forward
-          </button>
-          <button role="menuitem" onClick={run(() => st.reorder('down'))}>
-            <ChevronDown size={17} /> Send backward
-          </button>
-          <button role="menuitem" onClick={run(() => st.reorder('front'))}>
-            <ArrowUpToLine size={17} /> Bring to front
-          </button>
-          <button role="menuitem" onClick={run(() => st.reorder('back'))}>
-            <ArrowDownToLine size={17} /> Send to back
-          </button>
-          {single && (
-            <button role="menuitem" onClick={run(() => st.patchSel({ locked: !locked }))}>
-              {locked ? <Unlock size={17} /> : <Lock size={17} />} {locked ? 'Unlock' : 'Lock'}
+          {items.map(({ k, I, t, run: fn, off }) => (
+            <button key={k} role="menuitem" disabled={off} onClick={run(fn)}>
+              <I size={17} /> {t}
             </button>
-          )}
-          <button role="menuitem" onClick={run(() => (window.innerWidth < 900 ? useUI.getState().setCtx('all') : useUI.getState().setSheet('props')))}>
-            <SlidersHorizontal size={17} /> All settings
-          </button>
+          ))}
         </div>
       )}
     </>

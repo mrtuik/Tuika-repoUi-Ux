@@ -53,8 +53,8 @@ export function pickFile(accept: string): Promise<File | null> {
 const IMG_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const MAX_BYTES = 20 * 1024 * 1024
 
-/** Validates, decodes and downsizes (max 2048px) an image file. */
-export async function readImage(file: File): Promise<{ src: string; w: number; h: number; name: string }> {
+/** Validates, decodes and downsizes (max 1600px by default, big bitmaps are what kills a phone WebView) an image file. */
+export async function readImage(file: File, max = 1600): Promise<{ src: string; w: number; h: number; name: string }> {
   if (!IMG_TYPES.includes(file.type)) throw new Error('Unsupported image type. Use PNG, JPEG, WebP or GIF.')
   if (file.size > MAX_BYTES) throw new Error('Image is larger than 20 MB.')
   const url = URL.createObjectURL(file)
@@ -65,7 +65,6 @@ export async function readImage(file: File): Promise<{ src: string; w: number; h
       i.onerror = () => rej(new Error('Could not decode image'))
       i.src = url
     })
-    const max = 2048
     const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
     const w = Math.max(1, Math.round(img.naturalWidth * k))
     const h = Math.max(1, Math.round(img.naturalHeight * k))

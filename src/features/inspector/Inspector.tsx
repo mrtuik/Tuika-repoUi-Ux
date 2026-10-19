@@ -3,7 +3,11 @@ import { useEditor, selectedEls } from '../../state/editor'
 import type { AlignMode } from '../../state/editor'
 import type { CtxPanel } from '../../state/ui'
 import { brokenLinks } from '../../engine/doc'
-import { ColorField, Field, Num, Section, Seg, Slider, Toggle } from './controls'
+import { ColorField, Field, Num, Section, Seg, Slider, Toggle, parseColor } from './controls'
+import FontPicker from './FontPicker'
+import { gradCss } from '../../engine/gradient'
+import { getCachedImage } from '../canvas/ElNode'
+import type { El, Gradient } from '../../engine/types'
 
 export const FONTS: [string, string][] = [
   ['Inter, system-ui, sans-serif', 'Inter'],
@@ -29,6 +33,110 @@ const ALIGNS: { m: AlignMode; I: typeof AlignStartHorizontal; l: string }[] = [
   { m: 'vcenter', I: AlignCenterHorizontal, l: 'Center vertically' },
   { m: 'bottom', I: AlignEndHorizontal, l: 'Align bottom' },
 ]
+
+const GRADS: [string, string][] = [
+  ['#F97316', '#EC4899'],
+  ['#6366F1', '#06B6D4'],
+  ['#22C55E', '#EAB308'],
+  ['#171717', '#525252'],
+  ['#FDE68A', '#F97316'],
+  ['#0EA5E9', '#8B5CF6'],
+]
+
+/** A second colour that contrasts with the first, used when switching to a gradient. */
+function other(hex: string) {
+  const c = parseColor(hex) ?? '#171717'
+  const n = parseInt(c.slice(1), 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  const f = (v: number) => Math.round(lum > 0.55 ? v * 0.35 : v + (255 - v) * 0.6)
+  return '#' + [f(r), f(g), f(b)].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()
+}
+
+function FillControls({ e, patch, palette, onSave }: { e: El; patch: (p: Partial<El>, key?: string) => void; palette: string[]; onSave: () => void }) {
+  const canGrad = e.type === 'rect' || e.type === 'ellipse' || e.type === 'text'
+  const g = e.fillGradient
+  const mode = g ? g.type : 'solid'
+  const set = (next: Gradient, key?: string) => patch({ fillGradient: { ...next, stops: [...next.stops].sort((a, b) => a.pos - b.pos) } }, key)
+  const setMode = (m: 'solid' | 'linear' | 'radial') => {
+    if (m === 'solid') patch({ fillGradient: undefined })
+    else set(g ? { ...g, type: m } : { type: m, angle: 90, stops: [{ color: e.fill, pos: 0 }, { color: other(e.fill), pos: 1 }] })
+  }
+  const setStop = (i: number, part: Partial<Gradient['stops'][number]>) => g && set({ ...g, stops: g.stops.map((s, j) => (j === i ? { ...s, ...part } : s)) }, 'grad')
+  return (
+    <>
+      {canGrad && (
+        <Seg
+          label="Fill type"
+          value={mode as 'solid' | 'linear' | 'radial'}
+          options={[
+            { v: 'solid', label: 'Solid' },
+            { v: 'linear', label: 'Linear' },
+            { v: 'radial', label: 'Radial' },
+          ]}
+          onChange={setMode}
+        />
+      )}
+      {!g && <ColorField value={e.fill} swatches={palette} onSave={onSave} onChange={(c) => patch({ fill: c }, 'fill')} />}
+      {g && (
+        <>
+          <div className="grad-presets" role="group" aria-label="Gradient presets">
+            {GRADS.map(([a, b]) => (
+              <button
+                key={a + b}
+                className="grad-sw"
+                aria-label={`Gradient ${a} to ${b}`}
+                style={{ background: `linear-gradient(135deg, ${a}, ${b})` }}
+                onClick={() =>
+                  set({
+                    ...g,
+                    stops: [
+                      { color: a, pos: 0 },
+                      { color: b, pos: 1 },
+                    ],
+                  })
+                }
+              />
+            ))}
+          </div>
+          <div className="grad-bar" style={{ background: gradCss({ ...g, type: 'linear', angle: 0 }) }} aria-hidden />
+          {g.stops.map((s, i) => (
+            <div className="stop" key={i}>
+              <div className="stop-head">
+                <span>Colour {i + 1}</span>
+                {g.stops.length > 2 && (
+                  <button className="mini" onClick={() => set({ ...g, stops: g.stops.filter((_, j) => j !== i) })}>
+                    Remove
+                  </button>
+                )}
+              </div>
+              <ColorField value={s.color} swatches={palette} onChange={(c) => setStop(i, { color: c })} />
+              <div className="slide-row">
+                <Slider label={`Colour ${i + 1} position`} value={Math.round(s.pos * 100)} min={0} max={100} onChange={(v) => setStop(i, { pos: v / 100 })} />
+                <Num label={`Colour ${i + 1} position`} value={Math.round(s.pos * 100)} min={0} max={100} onChange={(v) => setStop(i, { pos: v / 100 })} suffix="%" />
+              </div>
+            </div>
+          ))}
+          {g.stops.length < 4 && (
+            <button className="mini" onClick={() => set({ ...g, stops: [...g.stops, { color: other(g.stops[0].color), pos: 0.5 }] })}>
+              Add colour
+            </button>
+          )}
+          {g.type === 'linear' && (
+            <Field label="Angle">
+              <div className="slide-row">
+                <Slider label="Gradient angle" value={((Math.round(g.angle) % 360) + 360) % 360} min={0} max={360} onChange={(v) => set({ ...g, angle: v }, 'grad')} />
+                <Num label="Gradient angle" value={Math.round(g.angle)} min={-360} max={360} onChange={(v) => set({ ...g, angle: v }, 'grad')} suffix="deg" />
+              </div>
+            </Field>
+          )}
+        </>
+      )}
+    </>
+  )
+}
 
 export default function Inspector({ only }: { only?: CtxPanel } = {}) {
   const doc = useEditor((s) => s.doc)!
@@ -130,12 +238,42 @@ export default function Inspector({ only }: { only?: CtxPanel } = {}) {
       </Section>
       )}
 
-      {only === 'corners' && hasRadius && (
-        <Section title="Corners">
-          <div className="slide-row">
-            <Slider label="Corner radius" value={Math.min(200, Math.round(e.radius))} min={0} max={Math.max(24, Math.round(Math.min(e.w, e.h) / 2))} onChange={(v) => patch({ radius: v }, 'rad')} />
-            <Num label="Corner radius" value={e.radius} min={0} onChange={(v) => patch({ radius: v }, 'rad')} suffix="px" />
-          </div>
+      {show('corners') && hasRadius && !multi && (
+        <Section title={e.type === 'image' ? 'Shape and corners' : 'Corners'}>
+          {e.type === 'image' && (
+            <Seg
+              label="Image shape"
+              value={e.mask === 'circle' ? 'circle' : e.radius > 0 ? 'rounded' : 'square'}
+              options={[
+                { v: 'square', label: 'Square' },
+                { v: 'rounded', label: 'Rounded' },
+                { v: 'circle', label: 'Circle' },
+              ]}
+              onChange={(v) => {
+                if (v === 'square') patch({ mask: undefined, radius: 0 })
+                else if (v === 'rounded') patch({ mask: undefined, radius: e.radius > 0 ? e.radius : 24 })
+                else {
+                  // circle: centre-square crop of the current crop, then a round mask
+                  const im = getCachedImage(e.src)
+                  let crop = e.crop
+                  if (im) {
+                    const cur = e.crop ?? { x: 0, y: 0, w: 1, h: 1 }
+                    const side = Math.min(cur.w * im.naturalWidth, cur.h * im.naturalHeight)
+                    const w = side / im.naturalWidth
+                    const h = side / im.naturalHeight
+                    crop = { x: cur.x + (cur.w - w) / 2, y: cur.y + (cur.h - h) / 2, w, h }
+                  }
+                  patch({ mask: 'circle', crop, h: e.w })
+                }
+              }}
+            />
+          )}
+          {e.mask !== 'circle' && (
+            <div className="slide-row">
+              <Slider label="Corner radius" value={Math.min(200, Math.round(e.radius))} min={0} max={Math.max(24, Math.round(Math.min(e.w, e.h) / 2))} onChange={(v) => patch({ radius: v }, 'rad')} />
+              <Num label="Corner radius" value={e.radius} min={0} onChange={(v) => patch({ radius: v }, 'rad')} suffix="px" />
+            </div>
+          )}
         </Section>
       )}
 
@@ -147,15 +285,7 @@ export default function Inspector({ only }: { only?: CtxPanel } = {}) {
 
       {isText && !multi && show('font') && (
         <Section title="Font">
-          <Field label="Typeface">
-            <select className="txt wide" aria-label="Font family" value={e.fontFamily} onChange={(ev) => patch({ fontFamily: ev.target.value })}>
-              {FONTS.map(([v, n]) => (
-                <option key={v} value={v}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <FontPicker value={e.fontFamily} onPick={(f) => patch({ fontFamily: f })} />
           <Field label="Weight">
             <select className="txt wide" aria-label="Font weight" value={e.fontWeight} onChange={(ev) => patch({ fontWeight: Number(ev.target.value) })}>
               {WEIGHTS.map(([w, n]) => (
@@ -213,7 +343,7 @@ export default function Inspector({ only }: { only?: CtxPanel } = {}) {
 
       {hasFill && show('colour') && (
         <Section title={isText ? 'Text color' : 'Fill'}>
-          <ColorField value={e.fill} swatches={doc.palette} onSave={savePalette(e.fill)} onChange={(c) => patch({ fill: c }, 'fill')} />
+          <FillControls e={e} patch={patch} palette={doc.palette} onSave={savePalette(e.fill)} />
         </Section>
       )}
 

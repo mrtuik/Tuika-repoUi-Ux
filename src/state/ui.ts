@@ -10,6 +10,9 @@ interface UI {
   elemPage: ElemPage
   ctx: CtxPanel | null
   grid: boolean
+  multi: boolean
+  picker: ((hex: string) => void) | null
+  cropOpen: boolean
   preview: boolean
   toast: string
   setSheet: (s: Sheet) => void
@@ -17,6 +20,10 @@ interface UI {
   openElements: (p?: ElemPage) => void
   setCtx: (c: CtxPanel | null) => void
   toggleGrid: () => void
+  setMulti: (v: boolean) => void
+  startPick: (cb: (hex: string) => void) => void
+  cancelPick: () => void
+  setCropOpen: (v: boolean) => void
   setPreview: (v: boolean) => void
   say: (m: string) => void
 }
@@ -28,6 +35,9 @@ export const useUI = create<UI>((set) => ({
   elemPage: 'home',
   ctx: null,
   grid: false,
+  multi: false,
+  picker: null,
+  cropOpen: false,
   preview: false,
   toast: '',
   setSheet: (sheet) => set({ sheet, ctx: null }),
@@ -35,6 +45,10 @@ export const useUI = create<UI>((set) => ({
   openElements: (p = 'home') => set({ sheet: 'assets', elemPage: p, ctx: null }),
   setCtx: (ctx) => set({ ctx }),
   toggleGrid: () => set((s) => ({ grid: !s.grid })),
+  setMulti: (multi) => set({ multi }),
+  startPick: (cb) => set({ picker: cb }),
+  cancelPick: () => set({ picker: null }),
+  setCropOpen: (cropOpen) => set({ cropOpen }),
   setPreview: (preview) => set({ preview }),
   say: (toast) => {
     set({ toast })

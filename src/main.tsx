@@ -21,6 +21,18 @@ class Boundary extends Component<{ children: ReactNode }, { err: string }> {
   static getDerivedStateFromError(e: Error) {
     return { err: e.message }
   }
+  componentDidCatch() {
+    // a crashed screen would otherwise stay blank/stuck: reload once automatically (projects autosave)
+    try {
+      const last = Number(sessionStorage.getItem('tuika-reload') ?? 0)
+      if (Date.now() - last > 20000) {
+        sessionStorage.setItem('tuika-reload', String(Date.now()))
+        location.reload()
+      }
+    } catch {
+      /* ignore */
+    }
+  }
   render() {
     if (!this.state.err) return this.props.children
     return (

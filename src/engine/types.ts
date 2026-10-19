@@ -13,6 +13,19 @@ export interface Shadow {
   opacity: number
 }
 
+export interface Gradient {
+  type: 'linear' | 'radial'
+  angle: number // degrees, 0 = left to right, 90 = top to bottom (linear only)
+  stops: { color: string; pos: number }[] // pos 0..1
+}
+
+export interface Crop {
+  x: number // normalised 0..1 of the source image
+  y: number
+  w: number
+  h: number
+}
+
 export interface El {
   id: string
   type: ElType
@@ -42,6 +55,10 @@ export interface El {
   svg?: string // sanitized svg markup (icons)
   shadow: Shadow
   link?: string // prototype: target artboard id
+  fillGradient?: Gradient // rect, ellipse, text
+  crop?: Crop // images
+  mask?: 'circle' // images
+  groupId?: string // elements sharing a groupId move/resize/duplicate together
 }
 
 export interface Artboard {

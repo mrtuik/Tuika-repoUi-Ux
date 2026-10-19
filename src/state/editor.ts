@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { produce } from 'immer'
 import type { Artboard, Doc, El, ElType } from '../engine/types'
-import { cloneEl, newArtboard, newEl, uid } from '../engine/doc'
+import { cloneEl, cloneEls, newArtboard, newEl, uid } from '../engine/doc'
 
 const MAX_HISTORY = 100
 export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom'
@@ -20,6 +20,7 @@ interface EditorState {
   lastKey: string
   lastT: number
   clip: El[] | null
+  styleClip: { from: ElType; props: Partial<El> } | null
   open: (doc: Doc) => void
   close: () => void
   commit: (fn: (d: Doc) => void, key?: string) => void
@@ -30,9 +31,15 @@ interface EditorState {
   patchEl: (abId: string, id: string, patch: Partial<El>, key?: string) => void
   patchSel: (patch: Partial<El>, key?: string) => void
   removeSel: () => void
+  syncH: (abId: string, id: string, h: number) => void
   duplicateSel: () => void
   reorder: (dir: 'up' | 'down' | 'front' | 'back') => void
   align: (mode: AlignMode) => void
+  group: () => void
+  ungroup: () => void
+  selectAll: () => void
+  copyStyle: () => void
+  pasteStyle: () => void
   copy: () => void
   cut: () => void
   paste: () => void
@@ -60,6 +67,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   lastKey: '',
   lastT: 0,
   clip: null,
+  styleClip: null,
 
   open: (doc) => set({ doc, sel: { abId: doc.artboards[0]?.id ?? null, elIds: [] }, past: [], future: [], rev: 0, lastKey: '', lastT: 0 }),
   close: () => set({ doc: null, sel: { abId: null, elIds: [] }, past: [], future: [], rev: 0 }),
@@ -130,6 +138,17 @@ export const useEditor = create<EditorState>((set, get) => ({
     }, key ? `${key}:${sel.elIds.join(',')}` : undefined)
   },
 
+  // text height follows its content; this is derived data, so it never creates an undo step
+  syncH: (abId, id, h) => {
+    const { doc, rev } = get()
+    if (!doc) return
+    const next = produce(doc, (d) => {
+      const e = d.artboards.find((a) => a.id === abId)?.els.find((x) => x.id === id)
+      if (e) e.h = h
+    })
+    if (next !== doc) set({ doc: next, rev: rev + 1 })
+  },
+
   removeSel: () => {
     const { sel } = get()
     if (!sel.abId || sel.elIds.length === 0) return
@@ -144,7 +163,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!doc || !sel.abId || sel.elIds.length === 0) return
     const ab = doc.artboards.find((a) => a.id === sel.abId)
     if (!ab) return
-    const copies = ab.els.filter((e) => sel.elIds.includes(e.id)).map((e) => ({ ...cloneEl(e), x: e.x + 16, y: e.y + 16 }))
+    const copies = cloneEls(ab.els.filter((e) => sel.elIds.includes(e.id)), 16, 16)
     get().commit((d) => {
       d.artboards.find((a) => a.id === sel.abId)!.els.push(...copies)
     })
@@ -190,6 +209,77 @@ export const useEditor = create<EditorState>((set, get) => ({
     })
   },
 
+  group: () => {
+    const { sel } = get()
+    if (!sel.abId || sel.elIds.length < 2) return
+    const gid = uid()
+    get().commit((d) => {
+      const ab = d.artboards.find((a) => a.id === sel.abId)
+      if (ab) for (const e of ab.els) if (sel.elIds.includes(e.id)) e.groupId = gid
+    })
+  },
+  ungroup: () => {
+    const { sel, doc } = get()
+    const ab = doc?.artboards.find((a) => a.id === sel.abId)
+    if (!ab) return
+    const gids = new Set(ab.els.filter((e) => sel.elIds.includes(e.id) && e.groupId).map((e) => e.groupId as string))
+    if (gids.size === 0) return
+    get().commit((d) => {
+      const a = d.artboards.find((x) => x.id === sel.abId)
+      if (a) for (const e of a.els) if (e.groupId && gids.has(e.groupId)) delete e.groupId
+    })
+  },
+  selectAll: () => {
+    const { sel, doc } = get()
+    const ab = doc?.artboards.find((a) => a.id === sel.abId) ?? doc?.artboards[0]
+    if (!ab) return
+    set({ sel: { abId: ab.id, elIds: ab.els.filter((e) => e.visible && !e.locked).map((e) => e.id) } })
+  },
+
+  copyStyle: () => {
+    const { sel, doc } = get()
+    const ab = doc?.artboards.find((a) => a.id === sel.abId)
+    const e = ab?.els.find((x) => x.id === sel.elIds[0])
+    if (!e) return
+    const props: Partial<El> = { fill: e.fill, fillGradient: e.fillGradient, stroke: e.stroke, strokeWidth: e.strokeWidth, strokeOn: e.strokeOn, radius: e.radius, opacity: e.opacity, shadow: { ...e.shadow } }
+    if (e.type === 'text') Object.assign(props, { fontFamily: e.fontFamily, fontWeight: e.fontWeight, align: e.align, lineHeight: e.lineHeight, letterSpacing: e.letterSpacing, underline: e.underline })
+    set({ styleClip: { from: e.type, props } })
+  },
+  pasteStyle: () => {
+    const { styleClip, sel } = get()
+    if (!styleClip || !sel.abId || sel.elIds.length === 0) return
+    const { from, props } = styleClip
+    const srcFill = from === 'rect' || from === 'ellipse' || from === 'text' || from === 'icon'
+    get().commit((d) => {
+      const ab = d.artboards.find((a) => a.id === sel.abId)
+      if (!ab) return
+      for (const e of ab.els) {
+        if (!sel.elIds.includes(e.id)) continue
+        const fillable = e.type === 'rect' || e.type === 'ellipse' || e.type === 'text' || e.type === 'icon'
+        if (fillable && srcFill) {
+          e.fill = props.fill as string
+          if (e.type !== 'icon') e.fillGradient = props.fillGradient ? { ...props.fillGradient, stops: props.fillGradient.stops.map((s) => ({ ...s })) } : undefined
+        }
+        if (e.type === 'rect' || e.type === 'ellipse' || e.type === 'text') {
+          if (from !== 'line' && from !== 'arrow' && from !== 'image' && from !== 'icon') {
+            e.stroke = props.stroke as string
+            e.strokeWidth = props.strokeWidth as number
+            e.strokeOn = props.strokeOn as boolean
+          }
+        } else if (e.type === 'line' || e.type === 'arrow') {
+          if (from === 'line' || from === 'arrow') {
+            e.stroke = props.stroke as string
+            e.strokeWidth = props.strokeWidth as number
+          } else if (srcFill) e.stroke = props.fill as string
+        }
+        if ((e.type === 'rect' || e.type === 'image') && (from === 'rect' || from === 'image')) e.radius = props.radius as number
+        e.opacity = props.opacity as number
+        e.shadow = { ...(props.shadow as El['shadow']) }
+        if (e.type === 'text' && from === 'text') Object.assign(e, { fontFamily: props.fontFamily, fontWeight: props.fontWeight, align: props.align, lineHeight: props.lineHeight, letterSpacing: props.letterSpacing, underline: props.underline })
+      }
+    })
+  },
+
   copy: () => {
     const { sel, doc } = get()
     const ab = doc?.artboards.find((a) => a.id === sel.abId)
@@ -205,7 +295,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { clip, sel, doc } = get()
     if (!clip || !doc) return
     const abId = sel.abId ?? doc.artboards[0].id
-    const copies = clip.map((e) => ({ ...cloneEl(e), x: e.x + 16, y: e.y + 16 }))
+    const copies = cloneEls(clip, 16, 16)
     get().commit((d) => {
       d.artboards.find((a) => a.id === abId)?.els.push(...copies)
     })

@@ -379,3 +379,58 @@ select.txt { appearance: none; padding-right: 30px; background-image: url("data:
 .fb-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; border-radius: 12px; font-size: 14px; text-align: left; color: var(--text); }
 .fb-menu button:active { background: var(--bg2); }
 .fb-menu button:disabled { opacity: 0.4; }
+
+/* text box in the Edit panel: no dark outline */
+.txt.area:focus, .txt.area:focus-visible { border-color: transparent; outline: none; box-shadow: none; background: var(--bg2); }
+
+/* ---------- multi select, eyedropper ---------- */
+.multi-btn { position: absolute; z-index: 5; top: 62px; right: 12px; width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--border); background: var(--panel); color: var(--text); display: inline-flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+.multi-btn.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.picker-ov { position: absolute; inset: 0; z-index: 9; cursor: crosshair; touch-action: none; background: rgba(0, 0, 0, 0.04); }
+.picker-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); display: flex; align-items: center; gap: 10px; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 6px 6px 6px 16px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow); }
+.picker-bar button { width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.2); color: inherit; display: inline-flex; align-items: center; justify-content: center; }
+.loupe { position: absolute; width: 96px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.loupe canvas { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35); image-rendering: pixelated; background: #fff; }
+.loupe-hex { display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 3px 10px 3px 4px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.loupe-hex i { width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7); display: inline-block; }
+
+/* ---------- gradient editor ---------- */
+.grad-presets { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.grad-presets::-webkit-scrollbar { display: none; }
+.grad-sw { flex: none; width: 44px; height: 44px; border-radius: 14px; border: 0; box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35); }
+.grad-bar { height: 18px; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35); margin: 4px 0; }
+.stop { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--bg2); }
+.stop-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
+
+/* ---------- font picker ---------- */
+.fontpick { display: flex; flex-direction: column; gap: 8px; }
+.fontpick .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.fontpick .chips::-webkit-scrollbar { display: none; }
+.fontpick .chipbtn { flex: none; }
+.fontlist { max-height: 260px; overflow-y: auto; border-radius: 14px; background: var(--bg2); padding: 4px; -webkit-overflow-scrolling: touch; }
+.fontlist.short { max-height: none; }
+.frow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 0 12px; border: 0; background: transparent; border-radius: 10px; color: var(--text); text-align: left; }
+.frow:active { background: var(--bg3); }
+.frow.on { background: var(--panel); box-shadow: inset 0 0 0 1px var(--border); font-weight: 600; }
+.fname { flex: 1; min-width: 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcat { font-size: 11px; color: var(--text2); flex: none; }
+
+/* ---------- crop ---------- */
+.crop-modal { position: fixed; inset: 0; z-index: 60; background: #0a0a0a; color: #fff; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.crop-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.crop-head strong { flex: 1; font-size: 17px; }
+.crop-head .ic.fill { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.crop-done { width: 44px; height: 44px; border-radius: 50%; border: 0; background: #fff; color: #0a0a0a; display: inline-flex; align-items: center; justify-content: center; }
+.crop-area { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
+.crop-area img { position: absolute; user-select: none; pointer-events: none; }
+.crop-box { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62); background-image: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.35)), linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.35)), linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.35)), linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.35)); background-size: 1px 100%, 1px 100%, 100% 1px, 100% 1px; background-position: 33.33% 0, 66.66% 0, 0 33.33%, 0 66.66%; background-repeat: no-repeat; touch-action: none; cursor: move; }
+.ch { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; touch-action: none; }
+.ch::after { content: ''; position: absolute; inset: 7px; background: #fff; border-radius: 50%; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.ch-t::after, .ch-b::after { inset: 10px 3px; border-radius: 5px; }
+.ch-l::after, .ch-r::after { inset: 3px 10px; border-radius: 5px; }
+.ch-tl { left: 0; top: 0; } .ch-tr { left: 100%; top: 0; } .ch-bl { left: 0; top: 100%; } .ch-br { left: 100%; top: 100%; }
+.ch-t { left: 50%; top: 0; } .ch-b { left: 50%; top: 100%; } .ch-l { left: 0; top: 50%; } .ch-r { left: 100%; top: 50%; }
+.crop-presets { display: flex; gap: 8px; overflow-x: auto; padding: 12px; scrollbar-width: none; }
+.crop-presets::-webkit-scrollbar { display: none; }
+.crop-presets .chipbtn { flex: none; background: rgba(255, 255, 255, 0.12); color: #fff; border-color: transparent; }
+.crop-presets .chipbtn.on { background: #fff; color: #0a0a0a; }

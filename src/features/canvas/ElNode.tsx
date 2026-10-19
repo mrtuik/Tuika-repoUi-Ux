@@ -1,10 +1,29 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Arrow, Image as KImage, Line, Rect, Shape, Text } from 'react-konva'
 import type Konva from 'konva'
 import type { El } from '../../engine/types'
 import { svgToDataUrl } from '../../services/svg'
+import { ensureFont } from '../../services/fonts'
+import { useUI } from '../../state/ui'
 
+// decoded bitmaps are the biggest memory cost: cap the cache by total pixels, not by count
 const imgCache = new Map<string, HTMLImageElement>()
+let cachePx = 0
+const MAX_PX = 36_000_000
+const px = (i: HTMLImageElement) => i.naturalWidth * i.naturalHeight
+
+function remember(src: string, i: HTMLImageElement) {
+  imgCache.set(src, i)
+  cachePx += px(i)
+  while (cachePx > MAX_PX && imgCache.size > 1) {
+    const k = imgCache.keys().next().value as string
+    if (k === src) break
+    cachePx -= px(imgCache.get(k)!)
+    imgCache.delete(k)
+  }
+}
+
+export const getCachedImage = (src?: string) => (src ? imgCache.get(src) : undefined)
 
 function useImg(src?: string) {
   const [img, setImg] = useState<HTMLImageElement | null>(() => (src ? imgCache.get(src) ?? null : null))
@@ -14,9 +33,9 @@ function useImg(src?: string) {
     if (hit) return setImg(hit)
     let ok = true
     const i = new window.Image()
+    i.decoding = 'async'
     i.onload = () => {
-      if (imgCache.size > 60) imgCache.delete(imgCache.keys().next().value as string)
-      imgCache.set(src, i)
+      remember(src, i)
       if (ok) setImg(i)
     }
     i.onerror = () => ok && setImg(null)
@@ -33,15 +52,52 @@ interface Props {
   interactive: boolean
   abW: number
   abH: number
-  siblings: El[]
-  snapT: number
-  onSelect?: (id: string, additive: boolean) => void
+  siblings?: El[]
+  getSiblings?: () => El[]
+  snapT?: number
+  onSelect?: (id: string, additive: boolean) => boolean | void
+  onToggleOff?: (id: string) => void
   onMoved?: (id: string, x: number, y: number) => void
   onDbl?: (id: string) => void
+  onAutoHeight?: (id: string, h: number) => void
+  onLongPress?: (id: string) => void
+  onDragStartSel?: (id: string) => void
+  onDragMoveSel?: (id: string, x: number, y: number) => void
   onLink?: (target: string) => void
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10
+
+/** Konva fill props for a solid colour or a gradient. */
+function fillProps(el: El): Record<string, any> {
+  const g = el.fillGradient
+  if (!g || g.stops.length < 2 || (el.type !== 'rect' && el.type !== 'ellipse' && el.type !== 'text')) return { fill: el.fill }
+  const stops = g.stops.flatMap((s) => [s.pos, s.color])
+  const w = Math.max(1, el.w)
+  const h = Math.max(1, el.h)
+  if (g.type === 'radial') {
+    return {
+      fill: undefined,
+      fillPriority: 'radial-gradient',
+      fillRadialGradientStartPoint: { x: w / 2, y: h / 2 },
+      fillRadialGradientStartRadius: 0,
+      fillRadialGradientEndPoint: { x: w / 2, y: h / 2 },
+      fillRadialGradientEndRadius: Math.max(1, Math.hypot(w, h) / 2),
+      fillRadialGradientColorStops: stops,
+    }
+  }
+  const a = (g.angle * Math.PI) / 180
+  const dx = Math.cos(a)
+  const dy = Math.sin(a)
+  const L = Math.abs((w / 2) * dx) + Math.abs((h / 2) * dy)
+  return {
+    fill: undefined,
+    fillPriority: 'linear-gradient',
+    fillLinearGradientStartPoint: { x: w / 2 - dx * L, y: h / 2 - dy * L },
+    fillLinearGradientEndPoint: { x: w / 2 + dx * L, y: h / 2 + dy * L },
+    fillLinearGradientColorStops: stops,
+  }
+}
 
 function snap1(v: number, size: number, targets: number[], T: number) {
   let best = v
@@ -57,8 +113,47 @@ function snap1(v: number, size: number, targets: number[], T: number) {
   return best
 }
 
-function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMoved, onDbl, onLink }: Props) {
-  const iconUrl = el.type === 'icon' && el.svg ? svgToDataUrl(el.svg, el.fill) : undefined
+function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect, onToggleOff, onMoved, onDbl, onAutoHeight, onLongPress, onDragStartSel, onDragMoveSel, onLink }: Props) {
+  const iconUrl = useMemo(() => (el.type === 'icon' && el.svg ? svgToDataUrl(el.svg, el.fill) : undefined), [el.type, el.svg, el.fill])
+  const textRef = useRef<Konva.Text>(null)
+  const lp = useRef(0)
+  const downSel = useRef(false)
+  const [fontTick, setFontTick] = useState(0)
+
+  // Google fonts: load on demand, then re-measure the text
+  useEffect(() => {
+    if (el.type !== 'text') return
+    let ok = true
+    void ensureFont(el.fontFamily, el.fontWeight, el.text).then((loaded) => {
+      if (!ok || !loaded) return
+      const n = textRef.current as any
+      n?._setTextData?.()
+      n?.getLayer()?.batchDraw()
+      setFontTick((t) => t + 1)
+    })
+    return () => {
+      ok = false
+    }
+  }, [el.type, el.fontFamily, el.fontWeight, el.text])
+
+  // text grows with its content so the whole text is always visible
+  useEffect(() => {
+    if (el.type !== 'text' || !onAutoHeight) return
+    let ok = true
+    const check = () => {
+      const n = textRef.current as any
+      if (!ok || !n) return
+      n._setTextData?.()
+      const h = Math.ceil(n.height() * 10) / 10
+      if (Math.abs(h - el.h) > 0.5) onAutoHeight(el.id, h)
+    }
+    check()
+    void (document as any).fonts?.ready?.then(check)
+    return () => {
+      ok = false
+    }
+  }, [el.type, el.text, el.w, el.h, el.fontSize, el.fontFamily, el.fontWeight, el.lineHeight, el.letterSpacing, el.id, onAutoHeight, fontTick])
+
   const img = useImg(el.type === 'image' ? el.src : iconUrl)
 
   const canSelect = interactive && !el.locked
@@ -71,6 +166,8 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
     visible: el.visible,
     draggable: canSelect,
     listening: interactive ? !el.locked : !!el.link,
+    perfectDrawEnabled: false,
+    shadowForStrokeEnabled: false,
     shadowEnabled: el.shadow.enabled,
     shadowColor: el.shadow.color,
     shadowBlur: el.shadow.blur,
@@ -82,12 +179,28 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
     ? {
         onMouseDown: (e: Konva.KonvaEventObject<any>) => {
           e.cancelBubble = true
-          onSelect?.(el.id, !!(e.evt as MouseEvent).shiftKey || !!(e.evt as MouseEvent).ctrlKey)
+          downSel.current = !!onSelect?.(el.id, !!(e.evt as MouseEvent).shiftKey || !!(e.evt as MouseEvent).ctrlKey || useUI.getState().multi)
         },
         onTouchStart: (e: Konva.KonvaEventObject<any>) => {
           if ((e.evt as TouchEvent).touches?.length > 1) return
           e.cancelBubble = true
-          onSelect?.(el.id, false)
+          downSel.current = !!onSelect?.(el.id, useUI.getState().multi)
+          // press and hold = start selecting several elements
+          window.clearTimeout(lp.current)
+          lp.current = window.setTimeout(() => {
+            lp.current = 0
+            downSel.current = false
+            navigator.vibrate?.(12)
+            onLongPress?.(el.id)
+          }, 480)
+        },
+        onTouchEnd: () => window.clearTimeout(lp.current),
+        // in "select multiple" mode a tap on an element that was already selected removes it
+        onClick: () => useUI.getState().multi && downSel.current && onToggleOff?.(el.id),
+        onTap: () => useUI.getState().multi && downSel.current && onToggleOff?.(el.id),
+        onDragStart: () => {
+          window.clearTimeout(lp.current)
+          onDragStartSel?.(el.id)
         },
         onDblClick: () => onDbl?.(el.id),
         onDblTap: () => onDbl?.(el.id),
@@ -95,13 +208,15 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
           const n = e.target
           const xs = [0, abW / 2, abW]
           const ys = [0, abH / 2, abH]
-          for (const s of siblings) {
+          const T = 8 / (n.getStage()?.scaleX() || 1)
+          for (const s of getSiblings?.() ?? siblings ?? []) {
             if (s.id === el.id || !s.visible) continue
             xs.push(s.x, s.x + s.w / 2, s.x + s.w)
             ys.push(s.y, s.y + s.h / 2, s.y + s.h)
           }
-          n.x(snap1(n.x(), el.w, xs, snapT))
-          n.y(snap1(n.y(), el.h, ys, snapT))
+          n.x(snap1(n.x(), el.w, xs, T))
+          n.y(snap1(n.y(), el.h, ys, T))
+          onDragMoveSel?.(el.id, n.x(), n.y())
         },
         onDragEnd: (e: Konva.KonvaEventObject<any>) => onMoved?.(el.id, r1(e.target.x()), r1(e.target.y())),
       }
@@ -112,7 +227,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
 
   const strokeProps = el.strokeOn ? { stroke: el.stroke, strokeWidth: el.strokeWidth } : {}
 
-  if (el.type === 'rect') return <Rect {...common} {...handlers} width={el.w} height={el.h} fill={el.fill} cornerRadius={el.radius} {...strokeProps} />
+  if (el.type === 'rect') return <Rect {...common} {...handlers} width={el.w} height={el.h} {...fillProps(el)} cornerRadius={el.radius} {...strokeProps} />
 
   if (el.type === 'ellipse')
     return (
@@ -121,7 +236,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
         {...handlers}
         width={el.w}
         height={el.h}
-        fill={el.fill}
+        {...fillProps(el)}
         {...strokeProps}
         sceneFunc={(ctx: any, shape: any) => {
           ctx.beginPath()
@@ -135,10 +250,10 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
   if (el.type === 'text')
     return (
       <Text
+        ref={textRef}
         {...common}
         {...handlers}
         width={el.w}
-        height={el.h || undefined}
         text={el.text ?? ''}
         fontSize={el.fontSize}
         fontFamily={el.fontFamily}
@@ -147,14 +262,22 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, snapT, onSelect, onMo
         lineHeight={el.lineHeight}
         letterSpacing={el.letterSpacing}
         textDecoration={el.underline ? 'underline' : ''}
-        fill={el.fill}
+        {...fillProps(el)}
         {...strokeProps}
       />
     )
 
   if (el.type === 'image' || el.type === 'icon')
     return img ? (
-      <KImage {...common} {...handlers} image={img} width={el.w} height={el.h} cornerRadius={el.type === 'image' ? el.radius : 0} />
+      <KImage
+        {...common}
+        {...handlers}
+        image={img}
+        width={el.w}
+        height={el.h}
+        crop={el.type === 'image' && el.crop ? { x: el.crop.x * img.naturalWidth, y: el.crop.y * img.naturalHeight, width: el.crop.w * img.naturalWidth, height: el.crop.h * img.naturalHeight } : undefined}
+        cornerRadius={el.type === 'image' ? (el.mask === 'circle' ? Math.min(el.w, el.h) / 2 : el.radius) : 0}
+      />
     ) : (
       <Rect {...common} {...handlers} width={el.w} height={el.h} fill="#F5F5F5" stroke="#E5E5E5" strokeWidth={1} dash={[4, 4]} />
     )

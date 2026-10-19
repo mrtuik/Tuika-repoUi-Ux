@@ -95,6 +95,6 @@ export async function importPhoto(hit: ImgHit): Promise<{ src: string; w: number
   if (!blob) throw new Error(navigator.onLine ? 'This site blocked the download. Try another photo.' : 'You are offline.')
   const type = /^image\/(png|jpeg|webp|gif)$/.test(blob.type) ? blob.type : 'image/jpeg'
   const file = new File([blob], 'photo', { type })
-  const img = await readImage(file)
+  const img = await readImage(file, 1280)
   return { ...img, name: hit.title.slice(0, 40) }
 }

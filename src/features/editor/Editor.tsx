@@ -11,6 +11,7 @@ import Layers from '../layers/Layers'
 import Elements from '../assets/Elements'
 import BottomSheet from './BottomSheet'
 import { ContextBar, ContextSheet } from './ContextBar'
+import CropModal from './CropModal'
 import ExportPanel from './ExportPanel'
 import Preview from '../prototype/Preview'
 
@@ -64,7 +65,10 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const selCount = useEditor((s) => s.sel.elIds.length)
   const selKey = useEditor((s) => s.sel.elIds.join(','))
   const save = useSave()
-  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements } = useUI()
+  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements, cropOpen, picker } = useUI()
+  const closeCrop = useCallback(() => useUI.getState().setCropOpen(false), [])
+  const cancelPick = useCallback(() => useUI.getState().cancelPick(), [])
+  const busyModal = cropOpen || !!picker
   const wide = useWide()
   const st = useEditor.getState()
 
@@ -86,10 +90,12 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const barOn = !wide && hasSel && sheet === null
   const ctxOpen = barOn && ctx !== null
   useBackHandler(preview, closePreview)
-  useBackHandler(!preview && !wide && sheet !== null, closeSheet)
-  useBackHandler(!preview && ctxOpen, closeCtx)
-  useBackHandler(!preview && barOn && !ctxOpen, deselect)
-  useBackHandler(!preview && (sheet === null || wide) && !barOn, () => void exit())
+  useBackHandler(!preview && !wide && sheet !== null && !busyModal, closeSheet)
+  useBackHandler(!preview && ctxOpen && !busyModal, closeCtx)
+  useBackHandler(!preview && barOn && !ctxOpen && !busyModal, deselect)
+  useBackHandler(!preview && cropOpen, closeCrop)
+  useBackHandler(!preview && !cropOpen && !!picker, cancelPick)
+  useBackHandler(!preview && (sheet === null || wide) && !barOn && !busyModal, () => void exit())
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -251,6 +257,8 @@ export default function Editor({ onExit }: { onExit: () => void }) {
           </nav>
         )}
       </div>
+
+      {cropOpen && <CropModal />}
 
       {toast && (
         <div className="toast" role="status">

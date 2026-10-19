@@ -62,7 +62,7 @@ export default function Preview() {
               <Rect width={ab.w} height={ab.h} fill={ab.bg} />
               <Group clipX={0} clipY={0} clipWidth={ab.w} clipHeight={ab.h}>
                 {ab.els.map((el) => (
-                  <ElNode key={el.id} el={el} interactive={false} abW={ab.w} abH={ab.h} siblings={[]} snapT={0} onLink={go} />
+                  <ElNode key={el.id} el={el} interactive={false} abW={ab.w} abH={ab.h} onLink={go} />
                 ))}
               </Group>
             </Layer>

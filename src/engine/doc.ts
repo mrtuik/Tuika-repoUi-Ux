@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { DOC_VERSION, EL_TYPES } from './types'
-import type { Artboard, Doc, El, ElType } from './types'
+import type { Artboard, Crop, Doc, El, ElType, Gradient } from './types'
 
 export const uid = () => nanoid(10)
 
@@ -61,6 +61,19 @@ export function newEl(type: ElType, patch: Partial<El> = {}): El {
 
 export function cloneEl(el: El): El {
   return { ...el, id: uid(), name: el.name.replace(/( copy)*$/, '') + ' copy', shadow: { ...el.shadow } }
+}
+
+/** Copies elements (new ids) and keeps their groups together under fresh group ids. */
+export function cloneEls(els: El[], dx = 0, dy = 0): El[] {
+  const groups = new Map<string, string>()
+  return els.map((e) => {
+    const c: El = { ...cloneEl(e), x: e.x + dx, y: e.y + dy }
+    if (e.groupId) {
+      if (!groups.has(e.groupId)) groups.set(e.groupId, uid())
+      c.groupId = groups.get(e.groupId)
+    }
+    return c
+  })
 }
 
 export function newArtboard(name: string, w: number, h: number, bg = '#FFFFFF', x = 0, y = 0): Artboard {
@@ -124,6 +137,29 @@ function safeSrc(v: unknown): string | undefined {
   return /^data:image\/(png|jpeg|webp|gif|svg\+xml)[;,]/i.test(v) ? v : undefined
 }
 
+const HEX = /^#[0-9a-f]{6}$/i
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+
+function cleanGradient(g: any): Gradient | undefined {
+  if (!g || typeof g !== 'object' || (g.type !== 'linear' && g.type !== 'radial') || !Array.isArray(g.stops)) return undefined
+  const stops = g.stops
+    .filter((s: any) => s && typeof s.color === 'string' && HEX.test(s.color) && typeof s.pos === 'number' && Number.isFinite(s.pos))
+    .map((s: any) => ({ color: s.color.toUpperCase(), pos: clamp01(s.pos) }))
+    .sort((a: { pos: number }, b: { pos: number }) => a.pos - b.pos)
+    .slice(0, 5)
+  if (stops.length < 2) return undefined
+  return { type: g.type, angle: num(g.angle, 90), stops }
+}
+
+function cleanCrop(c: any): Crop | undefined {
+  if (!c || typeof c !== 'object') return undefined
+  const x = clamp01(num(c.x, 0))
+  const y = clamp01(num(c.y, 0))
+  const w = Math.min(1 - x, num(c.w, 1))
+  const h = Math.min(1 - y, num(c.h, 1))
+  return w > 0.02 && h > 0.02 ? { x, y, w, h } : undefined
+}
+
 function cleanEl(raw: any, warnings: string[], where: string): El | null {
   if (!raw || typeof raw !== 'object') {
     warnings.push(`${where}: invalid element skipped`)
@@ -172,6 +208,12 @@ function cleanEl(raw: any, warnings: string[], where: string): El | null {
     },
     link: typeof raw.link === 'string' ? raw.link : undefined,
   }
+  const grad = raw.type === 'rect' || raw.type === 'ellipse' || raw.type === 'text' ? cleanGradient(raw.fillGradient) : undefined
+  if (grad) el.fillGradient = grad
+  const crop = raw.type === 'image' ? cleanCrop(raw.crop) : undefined
+  if (crop) el.crop = crop
+  if (raw.type === 'image' && raw.mask === 'circle') el.mask = 'circle'
+  if (typeof raw.groupId === 'string' && raw.groupId.length <= 40) el.groupId = raw.groupId
   if (raw.type !== 'text') {
     delete el.text
     delete el.fontSize
