@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
 import type { Doc, ProjectMeta } from '../../engine/types'
 import { DEVICE_PRESETS } from '../../engine/types'
 import { loginTemplate, newDoc, parseProject, serializeProject, statusBarEls, uid } from '../../engine/doc'
@@ -155,17 +155,6 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
           </div>
         ) : (
           <>
-            <button className="newcard" onClick={() => setDialog('new')}>
-              <span className="plus">
-                <Plus size={18} />
-              </span>
-              <span>
-                <strong>New project</strong>
-                <small>Phone, tablet or custom size</small>
-              </span>
-              <ChevronRight size={16} />
-            </button>
-
             <div className="hbar">
               <label className="search">
                 <Search size={15} />
@@ -226,6 +215,21 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
         )}
       </main>
 
+      {items.length > 0 && (
+        <div className="home-dock">
+          <button className="home-new" onClick={() => setDialog('new')}>
+            <span className="plus">
+              <Plus size={18} />
+            </span>
+            <span className="txt2">
+              <strong>New project</strong>
+              <small>Phone, tablet or custom size</small>
+            </span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
       {dialog === 'new' && <NewProject onClose={closeDialog} onCreate={(d) => onOpen(d, [])} />}
       {dialog === 'settings' && (
         <Sheet title="Settings" onClose={closeDialog}>
@@ -256,7 +260,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
   )
 }
 
-function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Sheet({ title, onClose, children, footer }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
@@ -268,6 +272,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
           </button>
         </div>
         <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>
   )
@@ -313,25 +318,52 @@ function NewProject({ onClose, onCreate }: { onClose: () => void; onCreate: (d: 
     }
   }
 
+  const [pickOpen, setPickOpen] = useState(false)
   return (
-    <Sheet title="New project" onClose={onClose}>
-      <div className="props">
+    <Sheet
+      title="New project"
+      onClose={onClose}
+      footer={
+        <>
+          {err && <div className="warn">{err}</div>}
+          <button className="big primary" onClick={() => void create()}>
+            Create project
+          </button>
+        </>
+      }
+    >
+      <div className="props np">
         <Section title="Project">
-          <Field label="Name">
-            <input className="txt wide" aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => e.target.select()} />
-          </Field>
+          <input className="txt wide" aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => e.target.select()} />
         </Section>
 
         <Section title="Frame">
           <Field label="Device">
-            <select className="txt wide" aria-label="Device preset" value={preset} onChange={(e) => pick(e.target.value)}>
-              {DEVICE_PRESETS.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                  {d.id !== 'custom' ? ` (${d.w} x ${d.h})` : ''}
-                </option>
-              ))}
-            </select>
+            <button className={'dev-field' + (pickOpen ? ' open' : '')} aria-expanded={pickOpen} aria-label="Device preset" onClick={() => setPickOpen((o) => !o)}>
+              <span className="dev-name">{p.name}</span>
+              <span className="dev-size">{preset !== 'custom' ? `${p.w} x ${p.h}` : 'Custom'}</span>
+              <ChevronDown size={16} />
+            </button>
+            {pickOpen && (
+              <div className="dev-list" role="listbox" aria-label="Devices">
+                {DEVICE_PRESETS.map((d) => (
+                  <button
+                    key={d.id}
+                    role="option"
+                    aria-selected={d.id === preset}
+                    className={'dev-row' + (d.id === preset ? ' on' : '')}
+                    onClick={() => {
+                      pick(d.id)
+                      setPickOpen(false)
+                    }}
+                  >
+                    <span className="dev-name">{d.name}</span>
+                    <span className="dev-size">{d.id !== 'custom' ? `${d.w} x ${d.h}` : ''}</span>
+                    {d.id === preset && <Check size={16} />}
+                  </button>
+                ))}
+              </div>
+            )}
           </Field>
           <div className="grid2">
             <Field label="Width">
@@ -341,17 +373,15 @@ function NewProject({ onClose, onCreate }: { onClose: () => void; onCreate: (d: 
               <Num label="Height" value={h} min={100} max={8000} suffix="H" onChange={(v) => { setH(Math.round(v)); setPreset('custom') }} />
             </Field>
           </div>
-          <Field label="Orientation">
-            <Seg
-              label="Orientation"
-              value={land ? 'l' : 'p'}
-              onChange={(v) => setLand(v === 'l')}
-              options={[
-                { v: 'p', label: 'Portrait' },
-                { v: 'l', label: 'Landscape' },
-              ]}
-            />
-          </Field>
+          <Seg
+            label="Orientation"
+            value={land ? 'l' : 'p'}
+            onChange={(v) => setLand(v === 'l')}
+            options={[
+              { v: 'p', label: 'Portrait' },
+              { v: 'l', label: 'Landscape' },
+            ]}
+          />
           <div className="field inline">
             <span className="flabel">Screens</span>
             <Stepper label="screens" value={count} min={1} max={12} onChange={setCount} />
@@ -372,7 +402,6 @@ function NewProject({ onClose, onCreate }: { onClose: () => void; onCreate: (d: 
               <span className="tpl-art login">
                 <i />
                 <i />
-                <i />
                 <b />
               </span>
               Login screen
@@ -383,11 +412,6 @@ function NewProject({ onClose, onCreate }: { onClose: () => void; onCreate: (d: 
             <Toggle label="Add status bar and navigation bar shapes" on={bars} onChange={setBars} />
           </div>
         </Section>
-
-        {err && <div className="warn">{err}</div>}
-        <button className="big primary" onClick={() => void create()}>
-          Create project
-        </button>
       </div>
     </Sheet>
   )
