@@ -136,6 +136,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, getSnapB
   const iconUrl = useMemo(() => (el.type === 'icon' && el.svg ? svgToDataUrl(el.svg, el.fill) : undefined), [el.type, el.svg, el.fill])
   const textRef = useRef<Konva.Text>(null)
   const downSel = useRef(false)
+  const snapCache = useRef<{ xs: number[]; ys: number[]; ox: number; oy: number; bw: number; bh: number; T: number } | null>(null)
   const [fontTick, setFontTick] = useState(0)
 
   // Google fonts: load on demand, then re-measure the text
@@ -208,27 +209,33 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, getSnapB
         // in "select multiple" mode a tap on an element that was already selected removes it
         onClick: () => useUI.getState().multi && downSel.current && onToggleOff?.(el.id),
         onTap: () => useUI.getState().multi && downSel.current && onToggleOff?.(el.id),
-        onDragStart: () => onDragStartSel?.(el.id),
-        onDblClick: () => onDbl?.(el.id),
-        onDblTap: () => onDbl?.(el.id),
-        onDragMove: (e: Konva.KonvaEventObject<any>) => {
-          const n = e.target
+        onDragStart: (e: Konva.KonvaEventObject<any>) => {
+          onDragStartSel?.(el.id)
+          // snap targets do not change while dragging: build them once
           const xs = [0, abW / 2, abW]
           const ys = [0, abH / 2, abH]
-          const T = 8 / (n.getStage()?.scaleX() || 1)
           for (const s of getSiblings?.() ?? siblings ?? []) {
             if (s.id === el.id || !s.visible) continue
             xs.push(s.x, s.x + s.w / 2, s.x + s.w)
             ys.push(s.y, s.y + s.h / 2, s.y + s.h)
           }
           const box = getSnapBox?.(el.id)
-          const ox = box?.dx ?? 0
-          const oy = box?.dy ?? 0
-          n.x(snap1(n.x() + ox, box?.w ?? el.w, xs, T) - ox)
-          n.y(snap1(n.y() + oy, box?.h ?? el.h, ys, T) - oy)
+          snapCache.current = { xs, ys, ox: box?.dx ?? 0, oy: box?.dy ?? 0, bw: box?.w ?? el.w, bh: box?.h ?? el.h, T: 8 / (e.target.getStage()?.scaleX() || 1) }
+        },
+        onDblClick: () => onDbl?.(el.id),
+        onDblTap: () => onDbl?.(el.id),
+        onDragMove: (e: Konva.KonvaEventObject<any>) => {
+          const n = e.target
+          const c = snapCache.current
+          if (!c) return
+          n.x(snap1(n.x() + c.ox, c.bw, c.xs, c.T) - c.ox)
+          n.y(snap1(n.y() + c.oy, c.bh, c.ys, c.T) - c.oy)
           onDragMoveSel?.(el.id, n.x(), n.y())
         },
-        onDragEnd: (e: Konva.KonvaEventObject<any>) => onMoved?.(el.id, r1(e.target.x()), r1(e.target.y())),
+        onDragEnd: (e: Konva.KonvaEventObject<any>) => {
+          snapCache.current = null
+          onMoved?.(el.id, r1(e.target.x()), r1(e.target.y()))
+        },
       }
     : {
         onClick: () => el.link && onLink?.(el.link),

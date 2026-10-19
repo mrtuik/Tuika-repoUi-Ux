@@ -11,7 +11,7 @@
   --on-accent: #ffffff;
   --red: #d92d20;
   --green: #12805c;
-  --canvas: #ececee;
+  --canvas: #ffffff;
   --shadow: 0 1px 2px rgba(10, 10, 10, 0.08);
   --r: 14px;
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -28,7 +28,7 @@
   --on-accent: #0a0a0a;
   --red: #ff6b5e;
   --green: #4ade80;
-  --canvas: #08080a;
+  --canvas: #121212;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -596,3 +596,78 @@ button:active:not(:disabled) { transform: scale(0.95); }
 .rot-handle { width: 36px; height: 36px; border: 0; box-shadow: var(--island-shadow); }
 .toast { font-size: 12px; padding: 8px 14px; border-radius: 8px; animation: tk-rise 0.18s var(--ease) both; }
 @media (prefers-reduced-motion: reduce) { .sheet, .dock-wrap > *, .floatbar, .fb-menu, .toast, .dk-label { animation: none !important; } }
+
+/* =====================================================================
+   Home screen, Excalidraw style (v9): calm surfaces, 8px radii, small
+   type, soft island shadow, Welcome-screen style empty state.
+   ===================================================================== */
+.logo-img.tile { border-radius: 22%; box-shadow: var(--island-shadow); }
+.logo-img.ring { border-radius: 50%; box-shadow: none; }
+.logo-img.ring img { position: static; width: 100%; height: 100%; left: auto; top: auto; max-width: 100%; }
+:root[data-theme='dark'] .logo-img.tile { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); }
+
+.hhead { padding: 12px 16px 4px; gap: 6px; animation: tk-rise 0.24s var(--ease) both; }
+.brand { gap: 10px; }
+.brand h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.brand p { font-size: 12px; }
+.hhead .ic.ring { width: 36px; min-width: 36px; height: 36px; border: 0; background: var(--bg2); border-radius: var(--island-radius); }
+.hhead .ic.ring:active { background: var(--bg3); }
+.hmain { padding: 10px 16px calc(24px + env(safe-area-inset-bottom)); gap: 10px; max-width: 760px; width: 100%; margin: 0 auto; }
+.hmain > * { animation: tk-rise 0.26s var(--ease) both; }
+.hmain > *:nth-child(2) { animation-delay: 0.03s; } .hmain > *:nth-child(3) { animation-delay: 0.06s; } .hmain > *:nth-child(4) { animation-delay: 0.09s; } .hmain > *:nth-child(5) { animation-delay: 0.12s; }
+
+/* New project card */
+.newcard { gap: 12px; padding: 10px 12px; min-height: 56px; border-radius: 10px; box-shadow: var(--island-shadow); }
+.newcard .plus { width: 36px; height: 36px; border-radius: 8px; }
+.newcard strong { font-size: 14px; font-weight: 600; }
+.newcard small { font-size: 12px; }
+.newcard:active { transform: scale(0.985); }
+
+/* search + view toggle + sort */
+.hbar { gap: 8px; }
+.search { height: 40px; min-height: 40px; border-radius: var(--island-radius); font-size: 14px; }
+.hbar .ic.sq { width: 40px; height: 40px; border-radius: var(--island-radius); }
+.group-label { font-size: 11px; letter-spacing: 0.06em; margin: 8px 2px 0; }
+
+/* project cards */
+.plist { gap: 10px; }
+.pcard { border-radius: 10px; border: 1px solid var(--border); box-shadow: none; transition: box-shadow 0.18s var(--ease), transform 0.12s var(--ease); }
+.pcard:active { transform: scale(0.99); box-shadow: var(--island-shadow); }
+.pthumb { padding: 10px; background: var(--bg2); }
+.pthumb img { border-radius: 3px; }
+.pinfo { padding: 8px 10px 4px 12px; }
+.pn { font-size: 14px; font-weight: 600; }
+.pm { font-size: 11px; }
+.pact { margin: 4px -4px 0 -6px; }
+.pact button { width: 34px; height: 34px; border-radius: 6px; color: var(--text2); }
+.pact button:active { background: var(--bg2); color: var(--text); }
+.rlist { border-radius: 10px; }
+
+/* empty state: Excalidraw welcome screen */
+.hero { margin: auto 0; align-items: center; gap: 0; padding: 12px 0 28px; animation: tk-rise 0.3s var(--ease) both; }
+.hero h2 { font-size: 20px; margin-top: 18px; letter-spacing: -0.01em; }
+.hero p { font-size: 13px; color: var(--text2); max-width: 340px; margin: 8px 8px 22px; line-height: 1.5; }
+.welcome-menu { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 4px; }
+.welcome-item { display: grid; grid-template-columns: 22px 1fr 18px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid transparent; background: transparent; color: var(--text2); border-radius: var(--island-radius); font-size: 14px; text-align: left; }
+.welcome-item span { color: var(--text); font-weight: 500; }
+.welcome-item:active { background: var(--bg2); }
+.welcome-item.primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--island-shadow); }
+.welcome-item.primary span { color: var(--on-accent); font-weight: 600; }
+.welcome-item.primary:active { opacity: 0.9; }
+.hero-art { display: none; }
+
+/* dialogs + sheets on home */
+.modal-back { animation: tk-fade 0.18s ease both; }
+@keyframes tk-fade { from { opacity: 0; } to { opacity: 1; } }
+.modal { border-radius: 12px 12px 0 0; box-shadow: var(--island-shadow); animation: tk-sheet 0.24s var(--ease) both; }
+.modal .grab { margin: 8px auto 0; width: 32px; height: 4px; }
+.tpl { border-radius: 8px; font-size: 12px; }
+.tpl-art { border-radius: 6px; }
+.big { min-height: 44px; border-radius: 8px; font-size: 14px; }
+@media (min-width: 700px) { .modal { border-radius: 12px; } }
+@media (prefers-reduced-motion: reduce) { .hhead, .hmain > *, .hero, .modal-back, .modal { animation: none !important; } }
+
+/* ---- canvas like Excalidraw: pure white, full width, no grey frame (v11) ---- */
+.canvas-wrap { background: var(--canvas); border-radius: 0; margin: 0; }
+.pthumb { background: var(--bg); border-bottom: 1px solid var(--border); }
+.pthumb img { box-shadow: 0 0 0 1px var(--border); }

@@ -70,6 +70,7 @@ function makeStyleAnchor(k: number) {
     } else {
       side(18 * k, 18 * k)
     }
+    a.shadowForStrokeEnabled(false)
     a.shadowColor('rgba(0,0,0,0.35)')
     a.shadowBlur(4)
     a.shadowOffsetY(1)
@@ -481,18 +482,22 @@ export default function CanvasView() {
   }, [fit, focusAb])
 
   // attach transformer to selected (unlocked) nodes
-  useEffect(() => {
+  const attachTr = useCallback(() => {
     const tr = trRef.current
     const st = stageHandle.stage
     if (!tr || !st) return
-    const ab = doc.artboards.find((a) => a.id === sel.abId)
+    const cur = useEditor.getState()
+    const ab = cur.doc?.artboards.find((a) => a.id === cur.sel.abId)
     const nodes = (ab?.els ?? [])
-      .filter((e) => sel.elIds.includes(e.id) && !e.locked && e.visible)
+      .filter((e) => cur.sel.elIds.includes(e.id) && !e.locked && e.visible)
       .map((e) => st.findOne('#' + e.id))
       .filter(Boolean) as Konva.Node[]
     tr.nodes(nodes)
     tr.getLayer()?.batchDraw()
-  }, [sel, doc])
+  }, [])
+  useEffect(() => {
+    attachTr()
+  }, [sel, doc, attachTr])
 
   const zoomAt = (px: number, py: number, factor: number) => {
     const v = viewRef.current
@@ -707,13 +712,22 @@ export default function CanvasView() {
         onMouseUp={endGesture}
         onTouchEnd={endGesture}
         onMouseLeave={endGesture}
-        onDragStart={() => {
+        onDragStart={(e) => {
           setBusy(true)
           pauseHeavy()
+          // moving an element: detach the handles so their layer (8 shadowed anchors + hit graph) is not redrawn every frame
+          if (e.target.getParent()?.className !== 'Transformer') {
+            const tr = trRef.current
+            if (tr) {
+              tr.nodes([])
+              tr.getLayer()?.batchDraw()
+            }
+          }
         }}
-        onDragEnd={() => {
+        onDragEnd={(e) => {
           setBusy(false)
           resumeHeavy()
+          if (e.target.getParent()?.className !== 'Transformer') attachTr()
         }}
       >
         <Layer>
@@ -721,8 +735,8 @@ export default function CanvasView() {
             const active = ab.id === activeId
             return (
               <Group key={ab.id} id={'grp-' + ab.id} name="abgroup" x={ab.x} y={ab.y} visible={active} listening={active}>
-                <Rect name="abshadow" x={-4} y={-4} width={ab.w + 8} height={ab.h + 8} cornerRadius={4} fill="rgba(0,0,0,0.035)" listening={false} perfectDrawEnabled={false} />
-                <Rect name="abshadow" x={-1.5} y={-1.5} width={ab.w + 3} height={ab.h + 3} cornerRadius={2} fill="rgba(0,0,0,0.05)" listening={false} perfectDrawEnabled={false} />
+                <Rect name="abshadow" x={-0.5} y={-0.5} width={ab.w + 1} height={ab.h + 1} stroke="rgba(128,128,128,0.45)" strokeWidth={1} strokeScaleEnabled={false} listening={false} perfectDrawEnabled={false} />
+                
                 <Rect
                   id={'bg-' + ab.id}
                   name="abbg"

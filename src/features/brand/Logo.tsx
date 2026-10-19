@@ -1,9 +1,10 @@
 /**
- * Tuika brand logo. Uses the exact PNG at public/logo.png (copy of brand/logo.png).
- * - variant "tile": the full PNG as a rounded square (use in dialogs, about, etc.)
- * - variant "ring": zoomed to the ring so it sits in a clean circle (app header)
+ * Tuika brand logo. Uses public/logo-mark.png: the glyph alone, centred on pure black (no outer ring),
+ * so it stays crisp and symmetrical at any size. The original artwork is still in public/logo.png.
+ * - variant "tile": rounded square (home header, dialogs)
+ * - variant "ring": full circle
  */
-const SRC = `${import.meta.env.BASE_URL}logo.png`
+const SRC = `${import.meta.env.BASE_URL}logo-mark.png`
 
 export function LogoMark({ size = 24, variant = 'tile', label = 'Tuika' }: { size?: number; variant?: 'tile' | 'ring'; label?: string }) {
   return (

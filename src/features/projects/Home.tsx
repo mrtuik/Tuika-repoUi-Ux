@@ -111,17 +111,17 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
     <div className="home">
       <header className="hhead">
         <div className="brand">
-          <LogoMark variant="ring" size={46} />
+          <LogoMark variant="tile" size={40} />
           <div>
             <h1>Tuika</h1>
             <p>UI/UX design studio</p>
           </div>
         </div>
         <button className="ic ring" aria-label="Import project backup" onClick={() => void importBackup()}>
-          <Upload size={18} />
+          <Upload size={17} />
         </button>
         <button className="ic ring" aria-label="Settings" onClick={() => setDialog('settings')}>
-          <Cog size={18} />
+          <Cog size={17} />
         </button>
       </header>
 
@@ -137,36 +137,38 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
       <main className="hmain">
         {items.length === 0 ? (
           <div className="hero">
-            <div className="hero-art" aria-hidden>
-              <span className="a1" />
-              <span className="a2" />
-              <span className="a3" />
-            </div>
+            <LogoMark variant="tile" size={64} />
             <h2>Design your first app screen</h2>
             <p>Pick a device size, add shapes, text and icons, link screens together and preview the prototype. Everything is saved on this phone.</p>
-            <button className="big primary" onClick={() => setDialog('new')}>
-              <Plus size={18} /> New project
-            </button>
-            <button className="big" onClick={() => void importBackup()}>
-              <Upload size={18} /> Restore from backup
-            </button>
+            <div className="welcome-menu">
+              <button className="welcome-item primary" onClick={() => setDialog('new')}>
+                <Plus size={18} />
+                <span>New project</span>
+                <ChevronRight size={16} />
+              </button>
+              <button className="welcome-item" onClick={() => void importBackup()}>
+                <Upload size={18} />
+                <span>Restore from backup</span>
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         ) : (
           <>
             <button className="newcard" onClick={() => setDialog('new')}>
               <span className="plus">
-                <Plus size={20} />
+                <Plus size={18} />
               </span>
               <span>
                 <strong>New project</strong>
                 <small>Phone, tablet or custom size</small>
               </span>
-              <ChevronRight size={18} />
+              <ChevronRight size={16} />
             </button>
 
             <div className="hbar">
               <label className="search">
-                <Search size={16} />
+                <Search size={15} />
                 <input aria-label="Search projects" placeholder="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
                 {q && (
                   <button className="ic small" aria-label="Clear search" onClick={() => setQ('')}>
@@ -175,7 +177,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
                 )}
               </label>
               <button className="ic sq" aria-label={view === 'grid' ? 'Switch to list view' : 'Switch to grid view'} onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
-                {view === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}
+                {view === 'grid' ? <List size={17} /> : <LayoutGrid size={17} />}
               </button>
             </div>
             <Seg<Sort>
@@ -204,16 +206,16 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
                     </div>
                     <div className="pact">
                       <button aria-label={`Rename ${p.name}`} title="Rename" onClick={() => void rename(p)}>
-                        <Pencil size={18} />
+                        <Pencil size={16} />
                       </button>
                       <button aria-label={`Duplicate ${p.name}`} title="Duplicate" onClick={() => void duplicate(p)}>
-                        <Copy size={18} />
+                        <Copy size={16} />
                       </button>
                       <button aria-label={`Export backup of ${p.name}`} title="Export backup" onClick={() => void exportOne(p)}>
-                        <Download size={18} />
+                        <Download size={16} />
                       </button>
                       <button aria-label={`Delete ${p.name}`} title="Delete" onClick={() => void remove(p)}>
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
