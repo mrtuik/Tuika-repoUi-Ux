@@ -54,6 +54,8 @@ interface Props {
   abH: number
   siblings?: El[]
   getSiblings?: () => El[]
+  /** Outline of the whole selection relative to this element, so a group snaps as one block. */
+  getSnapBox?: (id: string) => { dx: number; dy: number; w: number; h: number } | null
   snapT?: number
   onSelect?: (id: string, additive: boolean) => boolean | void
   onToggleOff?: (id: string) => void
@@ -64,6 +66,23 @@ interface Props {
   onDragStartSel?: (id: string) => void
   onDragMoveSel?: (id: string, x: number, y: number) => void
   onLink?: (target: string) => void
+}
+
+/** Small elements are hard to tap at low zoom: give every shape a hit box that is at least ~40 screen px wide and tall. */
+function hitBox(shape: any) {
+  const k = shape.getStage()?.scaleX() || 1
+  const w = shape.width()
+  const h = shape.height()
+  const px = Math.max(0, (40 / k - w) / 2)
+  const py = Math.max(0, (40 / k - h) / 2)
+  return { x: -px, y: -py, w: w + px * 2, h: h + py * 2 }
+}
+const slopHit = (ctx: any, shape: any) => {
+  const b = hitBox(shape)
+  ctx.beginPath()
+  ctx.rect(b.x, b.y, b.w, b.h)
+  ctx.closePath()
+  ctx.fillShape(shape)
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10
@@ -113,7 +132,7 @@ function snap1(v: number, size: number, targets: number[], T: number) {
   return best
 }
 
-function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect, onToggleOff, onMoved, onDbl, onAutoHeight, onDragStartSel, onDragMoveSel, onLink }: Props) {
+function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, getSnapBox, onSelect, onToggleOff, onMoved, onDbl, onAutoHeight, onDragStartSel, onDragMoveSel, onLink }: Props) {
   const iconUrl = useMemo(() => (el.type === 'icon' && el.svg ? svgToDataUrl(el.svg, el.fill) : undefined), [el.type, el.svg, el.fill])
   const textRef = useRef<Konva.Text>(null)
   const downSel = useRef(false)
@@ -202,8 +221,11 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
             xs.push(s.x, s.x + s.w / 2, s.x + s.w)
             ys.push(s.y, s.y + s.h / 2, s.y + s.h)
           }
-          n.x(snap1(n.x(), el.w, xs, T))
-          n.y(snap1(n.y(), el.h, ys, T))
+          const box = getSnapBox?.(el.id)
+          const ox = box?.dx ?? 0
+          const oy = box?.dy ?? 0
+          n.x(snap1(n.x() + ox, box?.w ?? el.w, xs, T) - ox)
+          n.y(snap1(n.y() + oy, box?.h ?? el.h, ys, T) - oy)
           onDragMoveSel?.(el.id, n.x(), n.y())
         },
         onDragEnd: (e: Konva.KonvaEventObject<any>) => onMoved?.(el.id, r1(e.target.x()), r1(e.target.y())),
@@ -215,7 +237,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
 
   const strokeProps = el.strokeOn ? { stroke: el.stroke, strokeWidth: el.strokeWidth } : {}
 
-  if (el.type === 'rect') return <Rect {...common} {...handlers} width={el.w} height={el.h} {...fillProps(el)} cornerRadius={el.radius} {...strokeProps} />
+  if (el.type === 'rect') return <Rect {...common} {...handlers} hitFunc={slopHit} width={el.w} height={el.h} {...fillProps(el)} cornerRadius={el.radius} {...strokeProps} />
 
   if (el.type === 'ellipse')
     return (
@@ -224,6 +246,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
         {...handlers}
         width={el.w}
         height={el.h}
+        hitFunc={slopHit}
         {...fillProps(el)}
         {...strokeProps}
         sceneFunc={(ctx: any, shape: any) => {
@@ -243,6 +266,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
         ref={textRef}
         {...common}
         {...handlers}
+        hitFunc={slopHit}
         width={el.w}
         text={el.text ?? ''}
         fontSize={el.fontSize}
@@ -263,6 +287,7 @@ function ElNodeBase({ el, interactive, abW, abH, siblings, getSiblings, onSelect
         {...common}
         {...handlers}
         image={img}
+        hitFunc={slopHit}
         width={el.w}
         height={el.h}
         crop={el.type === 'image' && el.crop ? { x: el.crop.x * img.naturalWidth, y: el.crop.y * img.naturalHeight, width: el.crop.w * img.naturalWidth, height: el.crop.h * img.naturalHeight } : undefined}

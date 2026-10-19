@@ -6,6 +6,7 @@ import { useUI } from '../../state/ui'
 import type { Artboard } from '../../engine/types'
 import ElNode from './ElNode'
 import FloatBar from './FloatBar'
+import RotateHandle from './RotateHandle'
 import PickerOverlay from './PickerOverlay'
 import { BoxSelect } from 'lucide-react'
 import { stageHandle } from './handle'
@@ -213,7 +214,28 @@ const ArtEls = memo(function ArtEls({ ab }: { ab: Artboard }) {
   const elsRef = useRef(ab.els)
   elsRef.current = ab.els
   const abId = ab.id
-  const getSiblings = useCallback(() => elsRef.current, [])
+  // the elements being dragged together must not snap to their own start positions (that made groups stick, then jump)
+  const getSiblings = useCallback(() => {
+    const st = useEditor.getState()
+    const ids = st.sel.abId === ab.id ? st.sel.elIds : []
+    return ids.length > 1 ? elsRef.current.filter((e) => !ids.includes(e.id)) : elsRef.current
+  }, [ab.id])
+  const getSnapBox = useCallback(
+    (id: string) => {
+      const st = useEditor.getState()
+      const ids = st.sel.abId === ab.id ? st.sel.elIds : []
+      if (ids.length < 2 || !ids.includes(id)) return null
+      const picked = elsRef.current.filter((e) => ids.includes(e.id))
+      const me = picked.find((e) => e.id === id)
+      if (!me) return null
+      const x1 = Math.min(...picked.map((e) => e.x))
+      const y1 = Math.min(...picked.map((e) => e.y))
+      const x2 = Math.max(...picked.map((e) => e.x + e.w))
+      const y2 = Math.max(...picked.map((e) => e.y + e.h))
+      return { dx: x1 - me.x, dy: y1 - me.y, w: x2 - x1, h: y2 - y1 }
+    },
+    [ab.id],
+  )
   const groupOf = useCallback((id: string) => {
     const g = elsRef.current.find((e) => e.id === id)?.groupId
     return g ? elsRef.current.filter((e) => e.groupId === g).map((e) => e.id) : [id]
@@ -301,7 +323,7 @@ const ArtEls = memo(function ArtEls({ ab }: { ab: Artboard }) {
   return (
     <>
       {ab.els.map((el) => (
-        <ElNode key={el.id} el={el} interactive abW={ab.w} abH={ab.h} getSiblings={getSiblings} onSelect={onSelect} onToggleOff={onToggleOff} onMoved={onMoved} onDbl={onDbl} onAutoHeight={onAutoHeight} onDragStartSel={onDragStartSel} onDragMoveSel={onDragMoveSel} />
+        <ElNode key={el.id} el={el} interactive abW={ab.w} abH={ab.h} getSiblings={getSiblings} getSnapBox={getSnapBox} onSelect={onSelect} onToggleOff={onToggleOff} onMoved={onMoved} onDbl={onDbl} onAutoHeight={onAutoHeight} onDragStartSel={onDragStartSel} onDragMoveSel={onDragMoveSel} />
       ))}
     </>
   )
@@ -746,7 +768,7 @@ export default function CanvasView() {
         <Layer>
           <Transformer
             ref={trRef}
-            rotateEnabled
+            rotateEnabled={false}
             keepRatio
             borderStroke="#171717"
             borderStrokeWidth={1.5}
@@ -778,6 +800,7 @@ export default function CanvasView() {
         </Layer>
       </Stage>
       <FloatBar view={view} size={size} busy={busy || moving} />
+      <RotateHandle view={view} size={size} busy={busy || moving} onBusy={setBusy} />
       <button
         className={'multi-btn' + (multi ? ' on' : '')}
         aria-pressed={multi}

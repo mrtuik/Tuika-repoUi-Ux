@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { ComponentType } from 'react'
+import { IconsFilledIcon, CardSearchIcon, UploadIcon } from '../editor/icons'
 import { ArrowLeft, Bookmark, Globe, ImagePlus, Shapes as ShapesIcon, Smile, Upload, Image as ImageIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEditor } from '../../state/editor'
@@ -61,12 +63,12 @@ function ShapeTile({ s, onAdd }: { s: ShapeDef; onAdd: () => void }) {
   )
 }
 
-const CATS: { page: Exclude<ElemPage, 'home'>; t: string; I: typeof Smile }[] = [
+const CATS: { page: Exclude<ElemPage, 'home'>; t: string; I: ComponentType<any> }[] = [
   { page: 'shapes', t: 'Shapes', I: ShapesIcon },
-  { page: 'icons', t: 'Icons', I: Smile },
-  { page: 'photos', t: 'Photos', I: ImageIcon },
+  { page: 'icons', t: 'Icons', I: IconsFilledIcon },
+  { page: 'photos', t: 'Photos', I: CardSearchIcon },
   { page: 'online', t: 'Online icons', I: Globe },
-  { page: 'upload', t: 'Upload', I: Upload },
+  { page: 'upload', t: 'Upload', I: UploadIcon },
   { page: 'library', t: 'Library', I: Bookmark },
 ]
 const TITLE: Record<ElemPage, string> = { home: 'Elements', shapes: 'Shapes', icons: 'Icons', photos: 'Photos', online: 'Online icons', upload: 'Upload', library: 'Library' }

@@ -6,55 +6,23 @@ import { Seg } from '../inspector/controls'
 
 const ICON: Record<ElType, typeof Square> = { rect: Square, ellipse: Circle, text: Type, image: ImageIcon, icon: Shapes, line: Minus, arrow: MoveRight }
 
-export default function Layers() {
+/** Every element of the current screen, top layer first. Tap one to select it. Used by the Layers sheet and the Arrange panel. */
+export function LayerList({ multi = false }: { multi?: boolean }) {
   const doc = useEditor((s) => s.doc)!
   const sel = useEditor((s) => s.sel)
   const st = useEditor.getState()
   const [q, setQ] = useState('')
-  const [multi, setMulti] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const ab = doc.artboards.find((a) => a.id === sel.abId) ?? doc.artboards[0]
   const list = [...ab.els].reverse().filter((e) => e.name.toLowerCase().includes(q.toLowerCase()))
-
   return (
-    <div className="layers">
-      <div className="artboard-tabs" role="tablist" aria-label="Artboards">
-        {doc.artboards.map((a) => (
-          <button
-            key={a.id}
-            role="tab"
-            aria-selected={a.id === ab.id}
-            className={'chip' + (a.id === ab.id ? ' on' : '')}
-            onClick={() => {
-              st.select(a.id, [])
-              window.dispatchEvent(new CustomEvent('tuika-focus', { detail: a.id }))
-            }}
-          >
-            {a.name}
-          </button>
-        ))}
-        <button
-          className="chip plus"
-          aria-label="Add artboard"
-          onClick={() => {
-            const id = st.addArtboard()
-            if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id }))
-          }}
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-
+    <>
       {ab.els.length > 6 && (
         <label className="search spaced">
           <Search size={16} />
           <input aria-label="Search layers" placeholder="Search layers" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
       )}
-      <div className="spaced">
-        <Seg label="Selection mode" value={multi ? 'multi' : 'one'} onChange={(v) => setMulti(v === 'multi')} options={[{ v: 'one', label: 'Select one' }, { v: 'multi', label: 'Select many' }]} />
-      </div>
-
       {list.length === 0 && <div className="empty small">{ab.els.length ? 'No layers match' : 'No layers yet. Use the toolbar to add some.'}</div>}
 
       <ul className="layer-list">
@@ -103,6 +71,52 @@ export default function Layers() {
           )
         })}
       </ul>
+
+    </>
+  )
+}
+
+export default function Layers() {
+  const doc = useEditor((s) => s.doc)!
+  const sel = useEditor((s) => s.sel)
+  const st = useEditor.getState()
+  const [multi, setMulti] = useState(false)
+  const ab = doc.artboards.find((a) => a.id === sel.abId) ?? doc.artboards[0]
+
+  return (
+    <div className="layers">
+      <div className="artboard-tabs" role="tablist" aria-label="Artboards">
+        {doc.artboards.map((a) => (
+          <button
+            key={a.id}
+            role="tab"
+            aria-selected={a.id === ab.id}
+            className={'chip' + (a.id === ab.id ? ' on' : '')}
+            onClick={() => {
+              st.select(a.id, [])
+              window.dispatchEvent(new CustomEvent('tuika-focus', { detail: a.id }))
+            }}
+          >
+            {a.name}
+          </button>
+        ))}
+        <button
+          className="chip plus"
+          aria-label="Add artboard"
+          onClick={() => {
+            const id = st.addArtboard()
+            if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id }))
+          }}
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+
+      <div className="spaced">
+        <Seg label="Selection mode" value={multi ? 'multi' : 'one'} onChange={(v) => setMulti(v === 'multi')} options={[{ v: 'one', label: 'Select one' }, { v: 'multi', label: 'Select many' }]} />
+      </div>
+
+      <LayerList multi={multi} />
 
       {sel.elIds.length > 0 && (
         <div className="actionbar" role="toolbar" aria-label="Layer actions">

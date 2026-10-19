@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ComponentType } from 'react'
+import { LayerIcon } from './icons'
 import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
@@ -163,12 +165,12 @@ export default function Editor({ onExit }: { onExit: () => void }) {
 
   const statusText = save.status === 'saving' ? 'Saving...' : save.status === 'error' ? 'Save failed' : save.status === 'saved' ? 'All changes saved' : 'Local project'
 
-  const dock: { id: string; label: string; I: typeof Square; run: () => void; on?: boolean; dot?: boolean }[] = [
+  const dock: { id: string; label: string; I: ComponentType<any>; run: () => void; on?: boolean; dot?: boolean }[] = [
     { id: 'sel', label: 'Select', I: MousePointer2, run: () => { st.select(useEditor.getState().sel.abId, []); setSheet(null) }, on: sheet === null },
     { id: 'elements', label: 'Elements', I: ShapesIcon, run: () => (sheet === 'assets' ? setSheet(null) : openElements('home')), on: sheet === 'assets' },
     { id: 'text', label: 'Add text', I: Type, run: () => { setSheet(null); st.addEl('text'); setCtx('edit') } },
     { id: 'frame', label: 'Add screen', I: Frame, run: () => { setSheet(null); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
-    { id: 'layers', label: 'Layers', I: LayersIcon, run: () => toggle('layers'), on: sheet === 'layers' },
+    { id: 'layers', label: 'Layers', I: LayerIcon, run: () => toggle('layers'), on: sheet === 'layers' },
     { id: 'props', label: 'Properties', I: Paintbrush, run: () => toggle('props'), on: sheet === 'props' },
   ]
 

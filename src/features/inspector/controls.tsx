@@ -217,7 +217,7 @@ function Picker({ value, onChange, palette, onSave }: { value: string; onChange:
 
   return (
     <div className="picker">
-      <Drag className="sv" style={{ background: `hsl(${hsv.h}, 100%, 50%)` }} onMove={(x, y) => emit(hsv.h, x, 1 - y)}>
+      <Drag className="sv" style={{ backgroundColor: `hsl(${hsv.h}, 100%, 50%)` }} onMove={(x, y) => emit(hsv.h, x, 1 - y)}>
         <span className="knob" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, background: safe }} />
       </Drag>
       <div className="hue-row">

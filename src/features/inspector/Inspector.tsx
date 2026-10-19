@@ -6,6 +6,7 @@ import { brokenLinks } from '../../engine/doc'
 import { ColorField, Field, Num, Section, Seg, Slider, Toggle, parseColor } from './controls'
 import FontPicker from './FontPicker'
 import Nudge from './Nudge'
+import { LayerList } from '../layers/Layers'
 import { gradCss } from '../../engine/gradient'
 import { getCachedImage } from '../canvas/ElNode'
 import type { El, Gradient } from '../../engine/types'
@@ -447,6 +448,8 @@ export default function Inspector({ only }: { only?: CtxPanel } = {}) {
               {e.locked ? <Unlock size={14} /> : <Lock size={14} />} {e.locked ? 'Unlock' : 'Lock'}
             </button>
           </div>
+          <div className="arr-list-h">All layers</div>
+          <LayerList multi={multi} />
         </Section>
       )}
 
