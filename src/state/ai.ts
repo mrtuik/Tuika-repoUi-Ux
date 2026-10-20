@@ -13,6 +13,8 @@ export interface Msg {
   designs?: AiDesign[]
   raw?: string
   images?: string[]
+  pics?: AiImage[]
+  thought?: { secs: number; steps: string[] }
 }
 
 interface AIState {
@@ -21,6 +23,8 @@ interface AIState {
   msgs: Msg[]
   busy: boolean
   step: string
+  steps: string[]
+  startedAt: number
   options: 1 | 2 | 3
   useScreen: boolean
   init: () => Promise<void>
@@ -29,6 +33,7 @@ interface AIState {
   setUseScreen: (v: boolean) => void
   clear: () => void
   send: (prompt: string, images?: AiImage[]) => Promise<void>
+  edit: (id: string, prompt: string, images: AiImage[]) => Promise<void>
   stop: () => void
 }
 
@@ -40,6 +45,8 @@ export const useAI = create<AIState>((set, get) => ({
   msgs: [],
   busy: false,
   step: '',
+  steps: [],
+  startedAt: 0,
   options: 2,
   useScreen: false,
   init: async () => {
@@ -54,9 +61,17 @@ export const useAI = create<AIState>((set, get) => ({
   setUseScreen: (useScreen) => set({ useScreen }),
   clear: () => {
     ctl?.abort()
-    set({ msgs: [], busy: false, step: '' })
+    set({ msgs: [], busy: false, step: '', steps: [] })
   },
   stop: () => ctl?.abort(),
+  edit: async (id, prompt, images) => {
+    if (get().busy) return
+    const i = get().msgs.findIndex((m) => m.id === id)
+    if (i < 0) return
+    // editing a message drops it and everything after it, then sends the edited version
+    set((s) => ({ msgs: s.msgs.slice(0, i) }))
+    await get().send(prompt, images)
+  },
   send: async (prompt, images = []) => {
     const { cfg, busy, options, useScreen, msgs } = get()
     const text = prompt.trim() || (images.length ? 'Recreate this design.' : '')
@@ -78,20 +93,33 @@ export const useAI = create<AIState>((set, get) => ({
       : ''
     turns.push({ role: 'user', text: text + refNote + (useScreen && ab ? `\n\nCurrent screen (JSON):\n${screenContext(ab)}` : ''), images })
 
-    push({ role: 'user', text: useScreen ? text + '  (with current screen)' : text, images: images.map((i) => i.url) })
+    push({ role: 'user', text: useScreen ? text + '  (with current screen)' : text, images: images.map((i) => i.url), pics: images })
     ctl = new AbortController()
-    set({ busy: true, step: 'Designing...' })
+    const t0 = Date.now()
+    const log: string[] = []
+    const note = (t: string) => {
+      log.push(t)
+      set({ step: t, steps: [...log] })
+    }
+    const thought = () => ({ secs: Math.max(1, Math.round((Date.now() - t0) / 1000)), steps: [...log] })
+    set({ busy: true, step: '', steps: [], startedAt: t0 })
     try {
+      note(`Reading your request: "${text.length > 60 ? text.slice(0, 57) + '...' : text}"`)
+      if (images.length) note(`Studying the ${images.length > 1 ? images.length + ' reference images' : 'reference image'} for layout, colours and type`)
+      if (useScreen && ab) note('Checking what is already on the current screen')
+      note(`Designing ${options} ${options === 1 ? 'option' : 'options'} for a ${dev.w} x ${dev.h} canvas`)
       const r = await generateJson(cfg, systemPrompt(dev, options), turns, ctl.signal)
+      note('Reading the design Gemini returned')
       const parsed = parseReply(r.text)
-      set({ step: 'Drawing icons...' })
+      note('Drawing icons and placing elements')
       const designs = await resolveDesigns(parsed.designs, dev, ctl.signal)
-      push({ role: 'ai', text: parsed.message || 'Here are your designs.', designs, raw: r.text })
+      note('Done')
+      push({ role: 'ai', text: parsed.message || 'Here are your designs.', designs, raw: r.text, thought: thought() })
     } catch (e: any) {
-      if (e?.name !== 'AbortError') push({ role: 'error', text: e?.message ?? 'Something went wrong.' })
+      if (e?.name !== 'AbortError') push({ role: 'error', text: e?.message ?? 'Something went wrong.', thought: thought() })
     } finally {
       ctl = null
-      set({ busy: false, step: '' })
+      set({ busy: false, step: '', steps: [] })
     }
   },
 }))

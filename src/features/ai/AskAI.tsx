@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUp, Plus, Square, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowUp, ChevronRight, History, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
 import { useAI } from '../../state/ai'
 import type { Msg } from '../../state/ai'
 import { useUI } from '../../state/ui'
@@ -65,33 +65,152 @@ function DesignCard({ design, onDone }: { design: AiDesign; onDone: () => void }
   )
 }
 
-function Bubble({ m, onDone, onSetup }: { m: Msg; onDone: () => void; onSetup: () => void }) {
-  if (m.role === 'user')
+function ThinkBlock({ steps, label, live }: { steps: string[]; label: string; live?: boolean }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={'ai-think' + (live ? ' live' : '')}>
+      <button className="ai-think-h" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <History size={18} />
+        <span className="ai-think-t">{label}</span>
+        <ChevronRight size={18} className={'ai-think-c' + (open ? ' open' : '')} />
+      </button>
+      {open && steps.length > 0 && (
+        <ol className="ai-think-b">
+          {steps.map((t, i) => (
+            <li key={i}>{t}</li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+function LiveThink() {
+  const { steps, step, startedAt } = useAI()
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(id)
+  }, [])
+  const secs = Math.max(0, Math.round((now - startedAt) / 1000))
+  return (
+    <div className="ai-live">
+      <ThinkBlock live steps={steps} label={step || 'Thinking...'} />
+      <div className="ai-live-row">
+        <small>{secs}s</small>
+        <button className="mini" onClick={() => useAI.getState().stop()}>
+          Stop
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function UserBubble({ m, busy, onPreview }: { m: Msg; busy: boolean; onPreview: (u: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [txt, setTxt] = useState(m.text)
+  const [pics, setPics] = useState<AiImage[]>(m.pics ?? [])
+  const [err, setErr] = useState('')
+  const ref = useRef<HTMLInputElement>(null)
+  const open = () => {
+    setTxt(m.text)
+    setPics(m.pics ?? [])
+    setErr('')
+    setEditing(true)
+  }
+  const add = async (files: FileList | null) => {
+    if (!files?.length) return
+    setErr('')
+    try {
+      const read = await Promise.all([...files].slice(0, Math.max(0, 3 - pics.length)).map(readImage))
+      setPics((p) => [...p, ...read].slice(0, 3))
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not add that image.')
+    }
+    if (ref.current) ref.current.value = ''
+  }
+  if (editing)
     return (
+      <div className="ai-edit">
+        {pics.length > 0 && (
+          <div className="ai-thumbs">
+            {pics.map((im, i) => (
+              <span key={i} className="ai-thumb">
+                <img src={im.url} alt={`Image ${i + 1}`} onClick={() => onPreview(im.url)} />
+                <button aria-label="Remove image" onClick={() => setPics((p) => p.filter((_, k) => k !== i))}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {err && <span className="ai-imgerr">{err}</span>}
+        <textarea aria-label="Edit your message" value={txt} rows={3} onChange={(e) => setTxt(e.target.value)} autoFocus />
+        <div className="ai-edit-bar">
+          <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => void add(e.target.files)} />
+          <button className="ai-plus sm" aria-label="Add a photo" disabled={pics.length >= 3} onClick={() => ref.current?.click()}>
+            <Plus size={18} />
+          </button>
+          <span className="ai-sp" />
+          <button className="mini" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+          <button
+            className="mini dark"
+            disabled={busy || (!txt.trim() && !pics.length)}
+            onClick={() => {
+              setEditing(false)
+              void useAI.getState().edit(m.id, txt, pics)
+            }}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    )
+  return (
+    <div className="ai-user">
       <div className="ai-msg user">
         {m.images && m.images.length > 0 && (
           <div className="ai-imgs">
             {m.images.map((u, i) => (
-              <img key={i} src={u} alt="Reference" />
+              <img key={i} src={u} alt="Reference" onClick={() => onPreview(u)} />
             ))}
           </div>
         )}
         {m.text}
       </div>
-    )
+      <button className="ai-edit-btn" aria-label="Edit message" disabled={busy} onClick={open}>
+        <Pencil size={14} />
+      </button>
+    </div>
+  )
+}
+
+function Thought({ m }: { m: Msg }) {
+  if (!m.thought) return null
+  return <ThinkBlock steps={m.thought.steps} label={`Thought for ${m.thought.secs}s`} />
+}
+
+function Bubble({ m, busy, onDone, onSetup, onPreview }: { m: Msg; busy: boolean; onDone: () => void; onSetup: () => void; onPreview: (u: string) => void }) {
+  if (m.role === 'user') return <UserBubble key={m.id} m={m} busy={busy} onPreview={onPreview} />
   if (m.role === 'error')
     return (
-      <div className="ai-msg err">
-        {m.text}
-        {/key|model|quota/i.test(m.text) && (
-          <button className="mini" onClick={onSetup}>
-            Open Gemini setup
-          </button>
-        )}
+      <div className="ai-reply">
+        <Thought m={m} />
+        <div className="ai-msg err">
+          {m.text}
+          {/key|model|quota/i.test(m.text) && (
+            <button className="mini" onClick={onSetup}>
+              Open Gemini setup
+            </button>
+          )}
+        </div>
       </div>
     )
   return (
     <div className="ai-reply">
+      <Thought m={m} />
       <div className="ai-msg bot">
         <AiEditIcon size={16} /> <span>{m.text}</span>
       </div>
@@ -107,7 +226,8 @@ function Bubble({ m, onDone, onSetup }: { m: Msg; onDone: () => void; onSetup: (
 }
 
 export default function AskAI() {
-  const { cfg, ready, msgs, busy, step, options } = useAI()
+  const { cfg, ready, msgs, busy, options } = useAI()
+  const [preview, setPreview] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [setup, setSetup] = useState(false)
   const [imgs, setImgs] = useState<AiImage[]>([])
@@ -189,21 +309,9 @@ export default function AskAI() {
           </div>
         )}
         {msgs.map((m) => (
-          <Bubble key={m.id} m={m} onDone={close} onSetup={() => setSetup(true)} />
+          <Bubble key={m.id} m={m} busy={busy} onDone={close} onSetup={() => setSetup(true)} onPreview={setPreview} />
         ))}
-        {busy && (
-          <div className="ai-msg bot typing">
-            <span className="dots">
-              <i />
-              <i />
-              <i />
-            </span>
-            <span>{step || 'Designing...'}</span>
-            <button className="mini" onClick={() => useAI.getState().stop()}>
-              Stop
-            </button>
-          </div>
-        )}
+        {busy && <LiveThink />}
       </div>
 
       <div className="ai-composer">
@@ -212,7 +320,7 @@ export default function AskAI() {
             <div className="ai-thumbs">
               {imgs.map((im, i) => (
                 <span key={i} className="ai-thumb">
-                  <img src={im.url} alt={`Attached image ${i + 1}`} />
+                  <img src={im.url} alt={`Attached image ${i + 1}`} onClick={() => setPreview(im.url)} />
                   <button aria-label="Remove image" onClick={() => setImgs((p) => p.filter((_, k) => k !== i))}>
                     <X size={12} />
                   </button>
@@ -261,6 +369,14 @@ export default function AskAI() {
           </div>
         </div>
       </div>
+      {preview && (
+        <div className="ai-lightbox" role="dialog" aria-label="Image preview" onClick={() => setPreview(null)}>
+          <img src={preview} alt="Preview" />
+          <button aria-label="Close preview" onClick={() => setPreview(null)}>
+            <X size={20} />
+          </button>
+        </div>
+      )}
       {setup && <AiSetup onClose={() => setSetup(false)} />}
     </div>
   )
