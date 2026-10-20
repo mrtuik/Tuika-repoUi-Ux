@@ -14,7 +14,9 @@ interface UI {
   picker: ((hex: string) => void) | null
   cropOpen: boolean
   preview: boolean
+  aiOpen: boolean
   toast: string
+  setAiOpen: (v: boolean) => void
   setSheet: (s: Sheet) => void
   setElemPage: (p: ElemPage) => void
   openElements: (p?: ElemPage) => void
@@ -39,6 +41,7 @@ export const useUI = create<UI>((set) => ({
   picker: null,
   cropOpen: false,
   preview: false,
+  aiOpen: false,
   toast: '',
   setSheet: (sheet) => set({ sheet, ctx: null }),
   setElemPage: (elemPage) => set({ elemPage }),
@@ -50,6 +53,7 @@ export const useUI = create<UI>((set) => ({
   cancelPick: () => set({ picker: null }),
   setCropOpen: (cropOpen) => set({ cropOpen }),
   setPreview: (preview) => set({ preview }),
+  setAiOpen: (aiOpen) => set(aiOpen ? { aiOpen, sheet: null, ctx: null } : { aiOpen }),
   say: (toast) => {
     set({ toast })
     if (t) clearTimeout(t)

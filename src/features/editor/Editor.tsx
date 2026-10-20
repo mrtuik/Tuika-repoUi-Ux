@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentType } from 'react'
 import { LayerIcon, UploadIcon } from './icons'
-import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
+import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus, Sparkles } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import type { Sheet } from '../../state/ui'
@@ -15,6 +15,7 @@ import BottomSheet from './BottomSheet'
 import { ContextBar, ContextSheet } from './ContextBar'
 import CropModal from './CropModal'
 import ExportPanel from './ExportPanel'
+import AskAI from '../ai/AskAI'
 import Preview from '../prototype/Preview'
 
 function useWide() {
@@ -68,7 +69,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const selCount = useEditor((s) => s.sel.elIds.length)
   const selKey = useEditor((s) => s.sel.elIds.join(','))
   const save = useSave()
-  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements, cropOpen, picker, elemPage } = useUI()
+  const { sheet, setSheet, preview, setPreview, toast, ctx, setCtx, openElements, cropOpen, picker, elemPage, aiOpen } = useUI()
   const closeCrop = useCallback(() => useUI.getState().setCropOpen(false), [])
   const cancelPick = useCallback(() => useUI.getState().cancelPick(), [])
   const busyModal = cropOpen || !!picker
@@ -94,12 +95,12 @@ export default function Editor({ onExit }: { onExit: () => void }) {
   const barOn = !wide && hasSel && (sheet === null || sheet === 'layers')
   const ctxOpen = barOn && ctx !== null
   useBackHandler(preview, closePreview)
-  useBackHandler(!preview && !wide && sheet !== null && !busyModal, closeSheet)
-  useBackHandler(!preview && ctxOpen && !busyModal, closeCtx)
-  useBackHandler(!preview && barOn && sheet === null && !ctxOpen && !busyModal, deselect)
-  useBackHandler(!preview && cropOpen, closeCrop)
-  useBackHandler(!preview && !cropOpen && !!picker, cancelPick)
-  useBackHandler(!preview && (sheet === null || wide) && !barOn && !busyModal, () => void exit())
+  useBackHandler(!preview && !aiOpen && !wide && sheet !== null && !busyModal, closeSheet)
+  useBackHandler(!preview && !aiOpen && ctxOpen && !busyModal, closeCtx)
+  useBackHandler(!preview && !aiOpen && barOn && sheet === null && !ctxOpen && !busyModal, deselect)
+  useBackHandler(!preview && !aiOpen && cropOpen, closeCrop)
+  useBackHandler(!preview && !aiOpen && !cropOpen && !!picker, cancelPick)
+  useBackHandler(!preview && !aiOpen && (sheet === null || wide) && !barOn && !busyModal, () => void exit())
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -174,6 +175,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
     { id: 'frame', label: 'Add screen', I: Frame, run: () => { setSheet(null); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
     { id: 'layers', label: 'Layers', I: LayerIcon, run: () => toggle('layers'), on: sheet === 'layers' },
     { id: 'props', label: 'Properties', I: Paintbrush, run: () => toggle('props'), on: sheet === 'props' },
+    { id: 'ai', label: 'Ask AI', I: Sparkles, run: () => useUI.getState().setAiOpen(true) },
   ]
 
   return (
@@ -249,7 +251,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
           <nav className="dock" aria-label="Tools">
             {dock.map(({ id, label, I, run, on, dot }, i) => (
               <span key={id} className="dk-item">
-                {(i === 4 || i === 5) && <span className="dk-sep" aria-hidden />}
+                {(i === 4 || i === 5 || i === 7) && <span className="dk-sep" aria-hidden />}
                 <button className={'dk' + (on ? ' on' : '') + (dot ? ' dot' : '')} aria-label={label} title={label} aria-pressed={on} onClick={run}>
                   <I size={18} strokeWidth={1.6} />
                   {on && <span className="dk-label">{SHORT[id]}</span>}
@@ -268,6 +270,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
         </div>
       )}
       {preview && <Preview />}
+      {aiOpen && <AskAI />}
     </div>
   )
 }

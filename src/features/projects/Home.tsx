@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
+import { Sparkles, Check, ChevronDown, ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
 import type { Doc, ProjectMeta } from '../../engine/types'
 import { DEVICE_PRESETS } from '../../engine/types'
 import { loginTemplate, newDoc, parseProject, serializeProject, statusBarEls, uid } from '../../engine/doc'
@@ -7,6 +7,8 @@ import { deleteProject, friendlyDbError, listProjects, loadDoc, saveDoc, setPref
 import { saveText, pickFile } from '../../services/files'
 import { useBackHandler } from '../../services/back'
 import { LogoMark } from '../brand/Logo'
+import AiSetup from '../ai/AiSetup'
+import { useAI } from '../../state/ai'
 import { ColorField, Field, Num, Section, Seg, Stepper, Toggle } from '../inspector/controls'
 
 type Sort = 'updated' | 'name' | 'created'
@@ -31,7 +33,11 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<Sort>('updated')
   const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [dialog, setDialog] = useState<null | 'new' | 'settings'>(null)
+  const aiCfg = useAI((s) => s.cfg)
+  useEffect(() => {
+    void useAI.getState().init()
+  }, [])
+  const [dialog, setDialog] = useState<null | 'new' | 'settings' | 'ai'>(null)
   const [msg, setMsg] = useState('')
   const [menu, setMenu] = useState<string | null>(null)
 
@@ -231,6 +237,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
       )}
 
       {dialog === 'new' && <NewProject onClose={closeDialog} onCreate={(d) => onOpen(d, [])} />}
+      {dialog === 'ai' && <AiSetup onClose={() => setDialog('settings')} />}
       {dialog === 'settings' && (
         <Sheet title="Settings" onClose={closeDialog}>
           <Section title="Appearance">
@@ -248,8 +255,17 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
               ]}
             />
           </Section>
+          <Section title="Ask AI">
+            <button className="dev-field" aria-label="Set up your Gemini" onClick={() => setDialog('ai')}>
+              <Sparkles size={16} />
+              <span className="dev-name">{aiCfg ? 'Gemini connected' : 'Set up your Gemini'}</span>
+              <span className="dev-size">{aiCfg ? aiCfg.model : 'Add key + model'}</span>
+              <ChevronRight size={16} />
+            </button>
+            <p className="hint flush">Ask AI designs screens for you from a short description. It uses your own Gemini API key.</p>
+          </Section>
           <Section title="Privacy">
-            <p className="hint flush">Projects are stored on this device (IndexedDB). Nothing is uploaded. Online icon search sends only your search text to api.iconify.design.</p>
+            <p className="hint flush">Projects are stored on this device (IndexedDB). Nothing is uploaded. Online icon search sends only your search text to api.iconify.design. If you use Ask AI, your prompt is sent to Google Gemini with your own key.</p>
           </Section>
           <Section title="Not in this version">
             <p className="hint flush">Automatic screenshot-to-layers detection, groups and auto-layout, reusable components, rulers and guides, image cropping.</p>
