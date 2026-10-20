@@ -795,3 +795,15 @@ button:active:not(:disabled) { transform: scale(0.95); }
 .ai-imgs img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; display: block; }
 .ai-head { padding: 2px 6px; }
 .ai-title strong { font-size: 14px; }
+
+/* Ask AI composer: one big box, + (square black) left; 1/2/3 and send right */
+.ai-composer { gap: 0; }
+.ai-box { display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 22px; padding: 12px 12px 10px 14px; box-shadow: var(--island-shadow); }
+.ai-box textarea { width: 100%; min-height: 48px; max-height: 140px; border: 0; outline: 0; background: transparent; resize: none; font: inherit; font-size: 15px; line-height: 1.4; padding: 0; color: var(--text); }
+.ai-bar { display: flex; align-items: center; gap: 8px; }
+.ai-sp { flex: 1; }
+.ai-plus { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 0; background: #000; color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.ai-plus:active:not(:disabled) { opacity: 0.8; }
+.ai-plus:disabled { opacity: 0.35; }
+.ai-bar .ai-nums { box-shadow: none; background: var(--bg2); padding: 2px; border-radius: 10px; }
+.ai-bar .ai-nums button { width: 32px; height: 30px; }

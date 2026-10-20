@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUp, Layers, Paperclip, Square, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Plus, Square, Trash2, X } from 'lucide-react'
 import { useAI } from '../../state/ai'
 import type { Msg } from '../../state/ai'
 import { useUI } from '../../state/ui'
@@ -107,7 +107,7 @@ function Bubble({ m, onDone, onSetup }: { m: Msg; onDone: () => void; onSetup: (
 }
 
 export default function AskAI() {
-  const { cfg, ready, msgs, busy, step, options, useScreen } = useAI()
+  const { cfg, ready, msgs, busy, step, options } = useAI()
   const [text, setText] = useState('')
   const [setup, setSetup] = useState(false)
   const [imgs, setImgs] = useState<AiImage[]>([])
@@ -207,60 +207,58 @@ export default function AskAI() {
       </div>
 
       <div className="ai-composer">
-        <div className="ai-opts">
-          <div className="ai-nums" role="group" aria-label="Number of options">
-            {([1, 2, 3] as const).map((n) => (
-              <button key={n} className={options === n ? 'on' : ''} aria-pressed={options === n} aria-label={`${n} ${n === 1 ? 'option' : 'options'}`} onClick={() => useAI.getState().setOptions(n)}>
-                {n}
-              </button>
-            ))}
-          </div>
-          <button className={'chipbtn' + (useScreen ? ' on' : '')} aria-pressed={useScreen} onClick={() => useAI.getState().setUseScreen(!useScreen)}>
-            <Layers size={14} /> Use this screen
-          </button>
-        </div>
-        {(imgs.length > 0 || imgErr) && (
-          <div className="ai-thumbs">
-            {imgs.map((im, i) => (
-              <span key={i} className="ai-thumb">
-                <img src={im.url} alt={`Attached image ${i + 1}`} />
-                <button aria-label="Remove image" onClick={() => setImgs((p) => p.filter((_, k) => k !== i))}>
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-            {imgErr && <span className="ai-imgerr">{imgErr}</span>}
-          </div>
-        )}
-        <div className="ai-input">
-          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void pick(e.target.files)} />
-          <button className="ai-attach" aria-label="Attach a reference image" disabled={busy || needSetup || imgs.length >= 3} onClick={() => fileRef.current?.click()}>
-            <Paperclip size={18} />
-          </button>
+        <div className="ai-box">
+          {(imgs.length > 0 || imgErr) && (
+            <div className="ai-thumbs">
+              {imgs.map((im, i) => (
+                <span key={i} className="ai-thumb">
+                  <img src={im.url} alt={`Attached image ${i + 1}`} />
+                  <button aria-label="Remove image" onClick={() => setImgs((p) => p.filter((_, k) => k !== i))}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+              {imgErr && <span className="ai-imgerr">{imgErr}</span>}
+            </div>
+          )}
           <textarea
             aria-label="Describe your design"
-            rows={1}
+            rows={2}
             value={text}
             placeholder={needSetup ? 'Set up Gemini to start' : imgs.length ? 'Add a note, or just send to follow this design' : msgs.length ? 'Ask for changes, e.g. make it darker' : 'Describe it, or attach a design to follow'}
             disabled={needSetup}
             onChange={(e) => {
               setText(e.target.value)
               e.target.style.height = 'auto'
-              e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'
+              e.target.style.height = Math.min(140, e.target.scrollHeight) + 'px'
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send()
             }}
           />
-          {busy ? (
-            <button className="ai-send stop" aria-label="Stop" onClick={() => useAI.getState().stop()}>
-              <Square size={14} fill="currentColor" />
+          <div className="ai-bar">
+            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void pick(e.target.files)} />
+            <button className="ai-plus" aria-label="Add a photo" disabled={busy || needSetup || imgs.length >= 3} onClick={() => fileRef.current?.click()}>
+              <Plus size={20} />
             </button>
-          ) : (
-            <button className="ai-send" aria-label="Send" disabled={(!text.trim() && !imgs.length) || !cfg} onClick={() => send()}>
-              <ArrowUp size={18} />
-            </button>
-          )}
+            <span className="ai-sp" />
+            <div className="ai-nums" role="group" aria-label="Number of options">
+              {([1, 2, 3] as const).map((n) => (
+                <button key={n} className={options === n ? 'on' : ''} aria-pressed={options === n} aria-label={`${n} ${n === 1 ? 'option' : 'options'}`} onClick={() => useAI.getState().setOptions(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            {busy ? (
+              <button className="ai-send stop" aria-label="Stop" onClick={() => useAI.getState().stop()}>
+                <Square size={14} fill="currentColor" />
+              </button>
+            ) : (
+              <button className="ai-send" aria-label="Send" disabled={(!text.trim() && !imgs.length) || !cfg} onClick={() => send()}>
+                <ArrowUp size={18} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {setup && <AiSetup onClose={() => setSetup(false)} />}
