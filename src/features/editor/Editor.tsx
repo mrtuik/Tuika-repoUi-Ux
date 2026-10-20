@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentType } from 'react'
-import { LayerIcon, UploadIcon } from './icons'
-import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus, Sparkles } from 'lucide-react'
+import { AiEditIcon, LayerIcon, UploadIcon } from './icons'
+import { ArrowLeft, Download, Frame, Grid3x3, Layers as LayersIcon, Maximize, MoreHorizontal, MousePointer2, Play, Redo2, Shapes as ShapesIcon, Paintbrush, Square, Type, Undo2, ClipboardPaste, Pencil, CopyPlus } from 'lucide-react'
 import { useEditor } from '../../state/editor'
 import { useUI } from '../../state/ui'
 import type { Sheet } from '../../state/ui'
@@ -175,7 +175,7 @@ export default function Editor({ onExit }: { onExit: () => void }) {
     { id: 'frame', label: 'Add screen', I: Frame, run: () => { setSheet(null); const id = st.addArtboard(); if (id) window.dispatchEvent(new CustomEvent('tuika-focus', { detail: id })) } },
     { id: 'layers', label: 'Layers', I: LayerIcon, run: () => toggle('layers'), on: sheet === 'layers' },
     { id: 'props', label: 'Properties', I: Paintbrush, run: () => toggle('props'), on: sheet === 'props' },
-    { id: 'ai', label: 'Ask AI', I: Sparkles, run: () => useUI.getState().setAiOpen(true) },
+    { id: 'ai', label: 'Ask AI', I: AiEditIcon, run: () => useUI.getState().setAiOpen(true) },
   ]
 
   return (

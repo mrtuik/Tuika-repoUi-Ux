@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { generateJson, loadAiCfg, saveAiCfg } from '../services/gemini'
-import type { AiCfg, Turn } from '../services/gemini'
+import type { AiCfg, AiImage, Turn } from '../services/gemini'
 import { parseReply, resolveDesigns, screenContext, systemPrompt } from '../services/aiDesign'
 import type { AiDesign } from '../services/aiDesign'
 import { useEditor } from './editor'
@@ -12,6 +12,7 @@ export interface Msg {
   text: string
   designs?: AiDesign[]
   raw?: string
+  images?: string[]
 }
 
 interface AIState {
@@ -27,7 +28,7 @@ interface AIState {
   setOptions: (n: 1 | 2 | 3) => void
   setUseScreen: (v: boolean) => void
   clear: () => void
-  send: (prompt: string) => Promise<void>
+  send: (prompt: string, images?: AiImage[]) => Promise<void>
   stop: () => void
 }
 
@@ -56,9 +57,9 @@ export const useAI = create<AIState>((set, get) => ({
     set({ msgs: [], busy: false, step: '' })
   },
   stop: () => ctl?.abort(),
-  send: async (prompt) => {
+  send: async (prompt, images = []) => {
     const { cfg, busy, options, useScreen, msgs } = get()
-    const text = prompt.trim()
+    const text = prompt.trim() || (images.length ? 'Recreate this design.' : '')
     if (!text || busy) return
     const push = (m: Omit<Msg, 'id'>) => set((s) => ({ msgs: [...s.msgs, { ...m, id: nanoid(6) }] }))
     if (!cfg) return push({ role: 'error', text: 'Set up your Gemini key first.' })
@@ -72,9 +73,12 @@ export const useAI = create<AIState>((set, get) => ({
     for (let i = 0; i < msgs.length - 1; i++)
       if (msgs[i].role === 'user' && msgs[i + 1].role === 'ai' && msgs[i + 1].raw) pairs.push([{ role: 'user', text: msgs[i].text }, { role: 'model', text: msgs[i + 1].raw!.slice(0, 14000) }])
     for (const p of pairs.slice(-3)) turns.push(...p)
-    turns.push({ role: 'user', text: text + (useScreen && ab ? `\n\nCurrent screen (JSON):\n${screenContext(ab)}` : '') })
+    const refNote = images.length
+      ? `\n\n[${images.length} reference image${images.length > 1 ? 's are' : ' is'} attached. Follow that design closely: same layout, sections, colours, typography, corner radii, spacing and wording, rebuilt as editable elements at the canvas size. If it is a screenshot of an app screen, recreate it faithfully, then you may improve small details. Use icons that match the ones you see.]`
+      : ''
+    turns.push({ role: 'user', text: text + refNote + (useScreen && ab ? `\n\nCurrent screen (JSON):\n${screenContext(ab)}` : ''), images })
 
-    push({ role: 'user', text: useScreen ? text + '  (with current screen)' : text })
+    push({ role: 'user', text: useScreen ? text + '  (with current screen)' : text, images: images.map((i) => i.url) })
     ctl = new AbortController()
     set({ busy: true, step: 'Designing...' })
     try {

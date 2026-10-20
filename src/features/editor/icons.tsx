@@ -1,6 +1,7 @@
 // Custom toolbar icons (24px grid, currentColor so they follow the theme).
 interface P {
   size?: number
+  strokeWidth?: number
 }
 
 const fillSvg = (size: number, vb: number, d: string) => (
@@ -64,6 +65,30 @@ export const CardSearchIcon = ({ size = 18 }: P) => (
       <circle cx="18" cy="17" r="3" />
       <path d="M20.5 19.5L21.5 20.5" />
       <path d="M2 10L7 10M22 10L11 10" />
+    </g>
+  </svg>
+)
+
+/** "ai-editing": sparkle + pencil. Used for Ask AI (toolbar, chat, settings). */
+export const AiEditIcon = ({ size = 18, strokeWidth = 1.5 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <g fill="none" stroke="currentColor" strokeWidth={strokeWidth}>
+      <path d="M6.538 2.322a.493.493 0 0 1 .924 0l.712 1.922c.1.27.312.483.582.583l1.922.71a.493.493 0 0 1 0 .925l-1.922.712a1 1 0 0 0-.582.582l-.712 1.922a.493.493 0 0 1-.924 0l-.711-1.922a1 1 0 0 0-.583-.583l-1.922-.71a.493.493 0 0 1 0-.925l1.922-.711c.27-.1.483-.313.583-.583z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m14.404 9.641l1.483 1.483M6 22h1.498c1.212 0 1.818 0 2.363-.226s.974-.654 1.831-1.512l8.15-8.149c.539-.539.808-.808.952-1.1a1.98 1.98 0 0 0 0-1.755c-.144-.291-.413-.56-.952-1.1c-.54-.539-.809-.808-1.1-.952a1.98 1.98 0 0 0-1.756 0c-.29.144-.56.413-1.1.952l-8.149 8.15c-.857.857-1.285 1.286-1.511 1.83C6 18.685 6 19.29 6 20.503z"
+      />
+    </g>
+  </svg>
+)
+
+/** "panel-right-outline-bold": opens the Gemini setup panel. */
+export const PanelRightIcon = ({ size = 18, strokeWidth = 2.5 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={strokeWidth}>
+      <path d="M14 4h5a3 3 0 0 1 3 3v10a3 3 0 0 1 -3 3H5a3 3 0 0 1 -3 -3V7a3 3 0 0 1 3 -3h5" />
+      <path d="M15 4v16" />
     </g>
   </svg>
 )

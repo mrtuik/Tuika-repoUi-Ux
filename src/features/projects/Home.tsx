@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Sparkles, Check, ChevronDown, ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Copy, Download, LayoutGrid, List, Pencil, Plus, Search, Settings as Cog, Trash2, Upload, X } from 'lucide-react'
 import type { Doc, ProjectMeta } from '../../engine/types'
 import { DEVICE_PRESETS } from '../../engine/types'
 import { loginTemplate, newDoc, parseProject, serializeProject, statusBarEls, uid } from '../../engine/doc'
@@ -8,6 +8,7 @@ import { saveText, pickFile } from '../../services/files'
 import { useBackHandler } from '../../services/back'
 import { LogoMark } from '../brand/Logo'
 import AiSetup from '../ai/AiSetup'
+import { AiEditIcon } from '../editor/icons'
 import { useAI } from '../../state/ai'
 import { ColorField, Field, Num, Section, Seg, Stepper, Toggle } from '../inspector/controls'
 
@@ -257,7 +258,7 @@ export default function Home({ onOpen, theme, setTheme }: Props) {
           </Section>
           <Section title="Ask AI">
             <button className="dev-field" aria-label="Set up your Gemini" onClick={() => setDialog('ai')}>
-              <Sparkles size={16} />
+              <AiEditIcon size={17} />
               <span className="dev-name">{aiCfg ? 'Gemini connected' : 'Set up your Gemini'}</span>
               <span className="dev-size">{aiCfg ? aiCfg.model : 'Add key + model'}</span>
               <ChevronRight size={16} />

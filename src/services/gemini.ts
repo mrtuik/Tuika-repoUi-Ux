@@ -61,16 +61,47 @@ export async function listModels(key: string): Promise<string[]> {
   return [...new Set(out)].sort((a, b) => rank(a) - rank(b) || b.localeCompare(a))
 }
 
+export interface AiImage {
+  mime: string
+  data: string // base64, no prefix
+  url: string // data URL for showing it in the chat
+}
 export interface Turn {
   role: 'user' | 'model'
   text: string
+  images?: AiImage[]
+}
+
+/** Downscales a picked image (max 1600px, JPEG) so the request stays small but text stays readable. */
+export async function readImage(file: File): Promise<AiImage> {
+  const src = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image()
+      i.onload = () => res(i)
+      i.onerror = () => rej(new Error('That file could not be read as an image.'))
+      i.src = src
+    })
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight))
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.round(img.naturalWidth * k))
+    c.height = Math.max(1, Math.round(img.naturalHeight * k))
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.drawImage(img, 0, 0, c.width, c.height)
+    const url = c.toDataURL('image/jpeg', 0.85)
+    return { mime: 'image/jpeg', data: url.split(',')[1], url }
+  } finally {
+    URL.revokeObjectURL(src)
+  }
 }
 
 export async function generateJson(cfg: AiCfg, system: string, turns: Turn[], signal?: AbortSignal): Promise<{ text: string; truncated: boolean }> {
   const url = `${BASE}/models/${encodeURIComponent(cleanModel(cfg.model))}:generateContent`
   const body = {
     systemInstruction: { parts: [{ text: system }] },
-    contents: turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+    contents: turns.map((t) => ({ role: t.role, parts: [...(t.images ?? []).map((im) => ({ inlineData: { mimeType: im.mime, data: im.data } })), { text: t.text }] })),
     generationConfig: { responseMimeType: 'application/json', temperature: 0.9 },
   }
   for (let attempt = 0; ; attempt++) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUp, Layers, Settings, Sparkles, Square, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Layers, Paperclip, Square, Trash2, X } from 'lucide-react'
 import { useAI } from '../../state/ai'
 import type { Msg } from '../../state/ai'
 import { useUI } from '../../state/ui'
@@ -8,6 +8,9 @@ import { addScreens, addToScreen } from '../../services/aiDesign'
 import type { AiDesign } from '../../services/aiDesign'
 import DesignPreview from './DesignPreview'
 import AiSetup from './AiSetup'
+import { AiEditIcon, PanelRightIcon } from '../editor/icons'
+import { readImage } from '../../services/gemini'
+import type { AiImage } from '../../services/gemini'
 
 const IDEAS = ['Login screen for a banking app', 'Food delivery home screen', '3-step onboarding flow', 'Dark music player', 'Fitness dashboard', 'Profile and settings page']
 
@@ -63,7 +66,19 @@ function DesignCard({ design, onDone }: { design: AiDesign; onDone: () => void }
 }
 
 function Bubble({ m, onDone, onSetup }: { m: Msg; onDone: () => void; onSetup: () => void }) {
-  if (m.role === 'user') return <div className="ai-msg user">{m.text}</div>
+  if (m.role === 'user')
+    return (
+      <div className="ai-msg user">
+        {m.images && m.images.length > 0 && (
+          <div className="ai-imgs">
+            {m.images.map((u, i) => (
+              <img key={i} src={u} alt="Reference" />
+            ))}
+          </div>
+        )}
+        {m.text}
+      </div>
+    )
   if (m.role === 'error')
     return (
       <div className="ai-msg err">
@@ -78,7 +93,7 @@ function Bubble({ m, onDone, onSetup }: { m: Msg; onDone: () => void; onSetup: (
   return (
     <div className="ai-reply">
       <div className="ai-msg bot">
-        <Sparkles size={14} /> <span>{m.text}</span>
+        <AiEditIcon size={16} /> <span>{m.text}</span>
       </div>
       {m.designs && (
         <div className="ai-cards">
@@ -95,6 +110,9 @@ export default function AskAI() {
   const { cfg, ready, msgs, busy, step, options, useScreen } = useAI()
   const [text, setText] = useState('')
   const [setup, setSetup] = useState(false)
+  const [imgs, setImgs] = useState<AiImage[]>([])
+  const [imgErr, setImgErr] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const close = () => useUI.getState().setAiOpen(false)
   useBackHandler(true, close)
@@ -107,9 +125,23 @@ export default function AskAI() {
   }, [msgs.length, busy])
 
   const send = (t = text) => {
-    if (!t.trim() || busy || !cfg) return
+    if ((!t.trim() && !imgs.length) || busy || !cfg) return
     setText('')
-    void useAI.getState().send(t)
+    const pics = imgs
+    setImgs([])
+    void useAI.getState().send(t, pics)
+  }
+  const pick = async (files: FileList | null) => {
+    if (!files?.length) return
+    setImgErr('')
+    try {
+      const room = 3 - imgs.length
+      const read = await Promise.all([...files].slice(0, Math.max(0, room)).map(readImage))
+      setImgs((p) => [...p, ...read].slice(0, 3))
+    } catch (e: any) {
+      setImgErr(e?.message ?? 'Could not add that image.')
+    }
+    if (fileRef.current) fileRef.current.value = ''
   }
   const needSetup = ready && !cfg
 
@@ -129,7 +161,7 @@ export default function AskAI() {
           </button>
         )}
         <button className="ic" aria-label="Gemini setup" onClick={() => setSetup(true)}>
-          <Settings size={17} />
+          <PanelRightIcon size={18} />
         </button>
       </header>
 
@@ -137,7 +169,7 @@ export default function AskAI() {
         {msgs.length === 0 && (
           <div className="ai-hero">
             <span className="ai-spark">
-              <Sparkles size={26} />
+              <AiEditIcon size={28} />
             </span>
             <h2>What should we design?</h2>
             <p>Describe a screen or an app. Gemini makes real, editable shapes, text and icons. Pick the design you like and add it to your project.</p>
@@ -176,10 +208,10 @@ export default function AskAI() {
 
       <div className="ai-composer">
         <div className="ai-opts">
-          <div className="seg mini" role="group" aria-label="Number of options">
+          <div className="ai-nums" role="group" aria-label="Number of options">
             {([1, 2, 3] as const).map((n) => (
-              <button key={n} className={options === n ? 'on' : ''} aria-pressed={options === n} onClick={() => useAI.getState().setOptions(n)}>
-                {n} {n === 1 ? 'option' : 'options'}
+              <button key={n} className={options === n ? 'on' : ''} aria-pressed={options === n} aria-label={`${n} ${n === 1 ? 'option' : 'options'}`} onClick={() => useAI.getState().setOptions(n)}>
+                {n}
               </button>
             ))}
           </div>
@@ -187,12 +219,29 @@ export default function AskAI() {
             <Layers size={14} /> Use this screen
           </button>
         </div>
+        {(imgs.length > 0 || imgErr) && (
+          <div className="ai-thumbs">
+            {imgs.map((im, i) => (
+              <span key={i} className="ai-thumb">
+                <img src={im.url} alt={`Attached image ${i + 1}`} />
+                <button aria-label="Remove image" onClick={() => setImgs((p) => p.filter((_, k) => k !== i))}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+            {imgErr && <span className="ai-imgerr">{imgErr}</span>}
+          </div>
+        )}
         <div className="ai-input">
+          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void pick(e.target.files)} />
+          <button className="ai-attach" aria-label="Attach a reference image" disabled={busy || needSetup || imgs.length >= 3} onClick={() => fileRef.current?.click()}>
+            <Paperclip size={18} />
+          </button>
           <textarea
             aria-label="Describe your design"
             rows={1}
             value={text}
-            placeholder={needSetup ? 'Set up Gemini to start' : msgs.length ? 'Ask for changes, e.g. make it darker' : 'Describe the screen you want'}
+            placeholder={needSetup ? 'Set up Gemini to start' : imgs.length ? 'Add a note, or just send to follow this design' : msgs.length ? 'Ask for changes, e.g. make it darker' : 'Describe it, or attach a design to follow'}
             disabled={needSetup}
             onChange={(e) => {
               setText(e.target.value)
@@ -208,7 +257,7 @@ export default function AskAI() {
               <Square size={14} fill="currentColor" />
             </button>
           ) : (
-            <button className="ai-send" aria-label="Send" disabled={!text.trim() || !cfg} onClick={() => send()}>
+            <button className="ai-send" aria-label="Send" disabled={(!text.trim() && !imgs.length) || !cfg} onClick={() => send()}>
               <ArrowUp size={18} />
             </button>
           )}
