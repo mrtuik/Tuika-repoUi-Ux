@@ -6,3 +6,5 @@ android/build
 *.keystore
 *.jks
 .env
+# fixed debug key (not secret): keeps every build signed the same so updates install over the old app
+!ci/tuika-debug.keystore

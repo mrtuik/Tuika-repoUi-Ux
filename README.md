@@ -13,6 +13,10 @@ The first run creates the `android/` project with `npx cap add android`. After i
 
 Type check and tests run in the workflow but do **not** block the APK (`continue-on-error`). Check those steps in the log. Once they are green, remove `continue-on-error` from `android.yml`.
 
+## Installing a new build over the old one
+
+Every debug build is signed with the same key, `ci/tuika-debug.keystore` (committed on purpose, it is only a debug key), and `scripts/patch_android.py` raises `versionCode` on each run. Upload `ci/tuika-debug.keystore`, `scripts/patch_android.py` and the updated `.github/workflows/android.yml`. The first build after this change still needs the old app uninstalled once (it was signed with a random key); after that every build installs as an update and keeps your projects.
+
 ## Signed release APK
 
 Create a keystore once (`keytool -genkeypair -v -keystore release.keystore -alias tuika -keyalg RSA -keysize 2048 -validity 10000`), then add these repository secrets (Settings -> Secrets and variables -> Actions):

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUp, ChevronRight, History, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Check, ChevronRight, Copy, History, MoreVertical, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
 import { useAI } from '../../state/ai'
 import type { Msg } from '../../state/ai'
 import { useUI } from '../../state/ui'
@@ -86,90 +86,38 @@ function ThinkBlock({ steps, label, live }: { steps: string[]; label: string; li
 }
 
 function LiveThink() {
-  const { steps, step, startedAt } = useAI()
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(id)
-  }, [])
-  const secs = Math.max(0, Math.round((now - startedAt) / 1000))
+  const { steps, step } = useAI()
   return (
     <div className="ai-live">
       <ThinkBlock live steps={steps} label={step || 'Thinking...'} />
-      <div className="ai-live-row">
-        <small>{secs}s</small>
-        <button className="mini" onClick={() => useAI.getState().stop()}>
-          Stop
-        </button>
-      </div>
     </div>
   )
 }
 
-function UserBubble({ m, busy, onPreview }: { m: Msg; busy: boolean; onPreview: (u: string) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [txt, setTxt] = useState(m.text)
-  const [pics, setPics] = useState<AiImage[]>(m.pics ?? [])
-  const [err, setErr] = useState('')
-  const ref = useRef<HTMLInputElement>(null)
-  const open = () => {
-    setTxt(m.text)
-    setPics(m.pics ?? [])
-    setErr('')
-    setEditing(true)
+async function copyText(t: string) {
+  try {
+    await navigator.clipboard.writeText(t)
+    return
+  } catch {
+    /* fall back below */
   }
-  const add = async (files: FileList | null) => {
-    if (!files?.length) return
-    setErr('')
-    try {
-      const read = await Promise.all([...files].slice(0, Math.max(0, 3 - pics.length)).map(readImage))
-      setPics((p) => [...p, ...read].slice(0, 3))
-    } catch (e: any) {
-      setErr(e?.message ?? 'Could not add that image.')
-    }
-    if (ref.current) ref.current.value = ''
+  const ta = document.createElement('textarea')
+  ta.value = t
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0'
+  document.body.appendChild(ta)
+  ta.select()
+  try {
+    document.execCommand('copy')
+  } catch {
+    /* ignore */
   }
-  if (editing)
-    return (
-      <div className="ai-edit">
-        {pics.length > 0 && (
-          <div className="ai-thumbs">
-            {pics.map((im, i) => (
-              <span key={i} className="ai-thumb">
-                <img src={im.url} alt={`Image ${i + 1}`} onClick={() => onPreview(im.url)} />
-                <button aria-label="Remove image" onClick={() => setPics((p) => p.filter((_, k) => k !== i))}>
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {err && <span className="ai-imgerr">{err}</span>}
-        <textarea aria-label="Edit your message" value={txt} rows={3} onChange={(e) => setTxt(e.target.value)} autoFocus />
-        <div className="ai-edit-bar">
-          <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => void add(e.target.files)} />
-          <button className="ai-plus sm" aria-label="Add a photo" disabled={pics.length >= 3} onClick={() => ref.current?.click()}>
-            <Plus size={18} />
-          </button>
-          <span className="ai-sp" />
-          <button className="mini" onClick={() => setEditing(false)}>
-            Cancel
-          </button>
-          <button
-            className="mini dark"
-            disabled={busy || (!txt.trim() && !pics.length)}
-            onClick={() => {
-              setEditing(false)
-              void useAI.getState().edit(m.id, txt, pics)
-            }}
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    )
+  ta.remove()
+}
+
+function UserBubble({ m, busy, editing, onEdit, onPreview }: { m: Msg; busy: boolean; editing: boolean; onEdit: () => void; onPreview: (u: string) => void }) {
+  const [copied, setCopied] = useState(false)
   return (
-    <div className="ai-user">
+    <div className={'ai-user' + (editing ? ' editing' : '')}>
       <div className="ai-msg user">
         {m.images && m.images.length > 0 && (
           <div className="ai-imgs">
@@ -180,9 +128,22 @@ function UserBubble({ m, busy, onPreview }: { m: Msg; busy: boolean; onPreview: 
         )}
         {m.text}
       </div>
-      <button className="ai-edit-btn" aria-label="Edit message" disabled={busy} onClick={open}>
-        <Pencil size={14} />
-      </button>
+      <div className="ai-acts">
+        <button
+          className="ai-act"
+          aria-label="Copy message"
+          onClick={() => {
+            void copyText(m.text)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1400)
+          }}
+        >
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+        </button>
+        <button className="ai-act" aria-label="Edit message" disabled={busy} onClick={onEdit}>
+          <Pencil size={14} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -192,8 +153,8 @@ function Thought({ m }: { m: Msg }) {
   return <ThinkBlock steps={m.thought.steps} label={`Thought for ${m.thought.secs}s`} />
 }
 
-function Bubble({ m, busy, onDone, onSetup, onPreview }: { m: Msg; busy: boolean; onDone: () => void; onSetup: () => void; onPreview: (u: string) => void }) {
-  if (m.role === 'user') return <UserBubble key={m.id} m={m} busy={busy} onPreview={onPreview} />
+function Bubble({ m, busy, editing, onEdit, onDone, onSetup, onPreview }: { m: Msg; busy: boolean; editing: boolean; onEdit: () => void; onDone: () => void; onSetup: () => void; onPreview: (u: string) => void }) {
+  if (m.role === 'user') return <UserBubble m={m} busy={busy} editing={editing} onEdit={onEdit} onPreview={onPreview} />
   if (m.role === 'error')
     return (
       <div className="ai-reply">
@@ -228,6 +189,9 @@ function Bubble({ m, busy, onDone, onSetup, onPreview }: { m: Msg; busy: boolean
 export default function AskAI() {
   const { cfg, ready, msgs, busy, options } = useAI()
   const [preview, setPreview] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [menu, setMenu] = useState<null | 'menu' | 'confirm'>(null)
+  const taRef = useRef<HTMLTextAreaElement>(null)
   const [text, setText] = useState('')
   const [setup, setSetup] = useState(false)
   const [imgs, setImgs] = useState<AiImage[]>([])
@@ -235,7 +199,16 @@ export default function AskAI() {
   const fileRef = useRef<HTMLInputElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const close = () => useUI.getState().setAiOpen(false)
+  const cancelEdit = () => {
+    setEditId(null)
+    setText('')
+    setImgs([])
+    setImgErr('')
+  }
   useBackHandler(true, close)
+  useBackHandler(!!editId, cancelEdit)
+  useBackHandler(menu !== null, () => setMenu(null))
+  useBackHandler(!!preview, () => setPreview(null))
 
   useEffect(() => {
     void useAI.getState().init()
@@ -244,12 +217,37 @@ export default function AskAI() {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
   }, [msgs.length, busy])
 
+  // keep the box as tall as its text (also when a message is loaded into it for editing)
+  useEffect(() => {
+    const t = taRef.current
+    if (!t) return
+    t.style.height = 'auto'
+    t.style.height = Math.min(140, t.scrollHeight) + 'px'
+  }, [text])
+
   const send = (t = text) => {
     if ((!t.trim() && !imgs.length) || busy || !cfg) return
-    setText('')
     const pics = imgs
+    const id = editId
+    setText('')
     setImgs([])
-    void useAI.getState().send(t, pics)
+    setEditId(null)
+    // editing replaces that message and everything after it, and the new answer continues from there
+    if (id) void useAI.getState().edit(id, t, pics)
+    else void useAI.getState().send(t, pics)
+  }
+  const startEdit = (m: Msg) => {
+    if (busy) return
+    setEditId(m.id)
+    setText(m.text)
+    setImgs(m.pics ?? [])
+    setImgErr('')
+    setTimeout(() => {
+      const t = taRef.current
+      if (!t) return
+      t.focus()
+      t.setSelectionRange(t.value.length, t.value.length)
+    }, 30)
   }
   const pick = async (files: FileList | null) => {
     if (!files?.length) return
@@ -275,11 +273,9 @@ export default function AskAI() {
           <strong>Ask AI</strong>
           <small>{cfg ? cfg.model : 'Gemini not set up'}</small>
         </div>
-        {msgs.length > 0 && (
-          <button className="ic" aria-label="New chat" onClick={() => useAI.getState().clear()}>
-            <Trash2 size={17} />
-          </button>
-        )}
+        <button className="ic" aria-label="More options" aria-haspopup="menu" aria-expanded={menu !== null} onClick={() => setMenu(menu ? null : 'menu')}>
+          <MoreVertical size={18} />
+        </button>
         <button className="ic" aria-label="Gemini setup" onClick={() => setSetup(true)}>
           <PanelRightIcon size={18} />
         </button>
@@ -309,13 +305,22 @@ export default function AskAI() {
           </div>
         )}
         {msgs.map((m) => (
-          <Bubble key={m.id} m={m} busy={busy} onDone={close} onSetup={() => setSetup(true)} onPreview={setPreview} />
+          <Bubble key={m.id} m={m} busy={busy} editing={editId === m.id} onEdit={() => startEdit(m)} onDone={close} onSetup={() => setSetup(true)} onPreview={setPreview} />
         ))}
         {busy && <LiveThink />}
       </div>
 
       <div className="ai-composer">
         <div className="ai-box">
+          {editId && (
+            <div className="ai-editing">
+              <Pencil size={14} />
+              <span>Editing message. The replies after it will be redone.</span>
+              <button aria-label="Cancel edit" onClick={cancelEdit}>
+                <X size={14} />
+              </button>
+            </div>
+          )}
           {(imgs.length > 0 || imgErr) && (
             <div className="ai-thumbs">
               {imgs.map((im, i) => (
@@ -330,23 +335,20 @@ export default function AskAI() {
             </div>
           )}
           <textarea
+            ref={taRef}
             aria-label="Describe your design"
             rows={2}
             value={text}
-            placeholder={needSetup ? 'Set up Gemini to start' : imgs.length ? 'Add a note, or just send to follow this design' : msgs.length ? 'Ask for changes, e.g. make it darker' : 'Describe it, or attach a design to follow'}
+            placeholder={needSetup ? 'Set up Gemini to start' : editId ? 'Edit your message' : imgs.length ? 'Add a note, or just send to follow this design' : msgs.length ? 'Ask for changes, e.g. make it darker' : 'Describe it, or attach a design to follow'}
             disabled={needSetup}
-            onChange={(e) => {
-              setText(e.target.value)
-              e.target.style.height = 'auto'
-              e.target.style.height = Math.min(140, e.target.scrollHeight) + 'px'
-            }}
+            onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send()
             }}
           />
           <div className="ai-bar">
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void pick(e.target.files)} />
-            <button className="ai-plus" aria-label="Add a photo" disabled={busy || needSetup || imgs.length >= 3} onClick={() => fileRef.current?.click()}>
+            <button className="ai-plus" aria-label="Add a photo" disabled={needSetup || imgs.length >= 3} onClick={() => fileRef.current?.click()}>
               <Plus size={20} />
             </button>
             <span className="ai-sp" />
@@ -369,6 +371,37 @@ export default function AskAI() {
           </div>
         </div>
       </div>
+      {menu && (
+        <div className="ai-menu-back" onClick={() => setMenu(null)}>
+          <div className="ai-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+            {menu === 'menu' ? (
+              <button role="menuitem" className="ai-mi danger" disabled={!msgs.length} onClick={() => setMenu('confirm')}>
+                <Trash2 size={16} /> Delete chat
+              </button>
+            ) : (
+              <div className="ai-confirm">
+                <p>Delete this whole chat?</p>
+                <div>
+                  <button className="mini" onClick={() => setMenu(null)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="mini del"
+                    onClick={() => {
+                      useAI.getState().clear()
+                      cancelEdit()
+                      setMenu(null)
+                      useUI.getState().say('Chat deleted')
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {preview && (
         <div className="ai-lightbox" role="dialog" aria-label="Image preview" onClick={() => setPreview(null)}>
           <img src={preview} alt="Preview" />

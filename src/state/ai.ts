@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { generateJson, loadAiCfg, saveAiCfg } from '../services/gemini'
 import type { AiCfg, AiImage, Turn } from '../services/gemini'
-import { parseReply, resolveDesigns, screenContext, systemPrompt } from '../services/aiDesign'
+import { designsToRaw, parseReply, resolveDesigns, screenContext, systemPrompt } from '../services/aiDesign'
 import type { AiDesign } from '../services/aiDesign'
 import { useEditor } from './editor'
 
@@ -86,8 +86,16 @@ export const useAI = create<AIState>((set, get) => ({
     const turns: Turn[] = []
     const pairs: Turn[][] = []
     for (let i = 0; i < msgs.length - 1; i++)
-      if (msgs[i].role === 'user' && msgs[i + 1].role === 'ai' && msgs[i + 1].raw) pairs.push([{ role: 'user', text: msgs[i].text }, { role: 'model', text: msgs[i + 1].raw!.slice(0, 14000) }])
-    for (const p of pairs.slice(-3)) turns.push(...p)
+      if (msgs[i].role === 'user' && msgs[i + 1].role === 'ai' && msgs[i + 1].raw) pairs.push([{ role: 'user', text: msgs[i].text, images: msgs[i].pics }, { role: 'model', text: msgs[i + 1].raw!.slice(0, 24000) }])
+    // keep the recent exchanges, and the most recent reference image so "same to same" follow-ups still see it
+    const recent = pairs.slice(-4)
+    let keptImg = false
+    for (let k = recent.length - 1; k >= 0; k--) {
+      const u = recent[k][0]
+      if (u.images?.length && !keptImg) keptImg = true
+      else u.images = undefined
+    }
+    for (const p of recent) turns.push(...p)
     const refNote = images.length
       ? `\n\n[${images.length} reference image${images.length > 1 ? 's are' : ' is'} attached. Follow that design closely: same layout, sections, colours, typography, corner radii, spacing and wording, rebuilt as editable elements at the canvas size. If it is a screenshot of an app screen, recreate it faithfully, then you may improve small details. Use icons that match the ones you see.]`
       : ''
@@ -114,7 +122,7 @@ export const useAI = create<AIState>((set, get) => ({
       note('Drawing icons and placing elements')
       const designs = await resolveDesigns(parsed.designs, dev, ctl.signal)
       note('Done')
-      push({ role: 'ai', text: parsed.message || 'Here are your designs.', designs, raw: r.text, thought: thought() })
+      push({ role: 'ai', text: parsed.message || 'Here are your designs.', designs, raw: designsToRaw(parsed.message, designs), thought: thought() })
     } catch (e: any) {
       if (e?.name !== 'AbortError') push({ role: 'error', text: e?.message ?? 'Something went wrong.', thought: thought() })
     } finally {
