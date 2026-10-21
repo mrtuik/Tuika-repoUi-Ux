@@ -869,3 +869,15 @@ button:active:not(:disabled) { transform: scale(0.95); }
 .ai-confirm p { margin: 0; font-size: 14px; font-weight: 600; }
 .ai-confirm div { display: flex; gap: 8px; justify-content: flex-end; }
 .mini.del { background: #dc2626; color: #fff; }
+
+/* Claude-style header: no divider, floats over the chat, messages fade out underneath it */
+.ai-head { position: absolute; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 5; border-bottom: 0; padding: 4px 6px 16px; background: linear-gradient(to bottom, var(--bg) 0%, var(--bg) 62%, transparent 100%); pointer-events: none; }
+.ai-head > * { pointer-events: auto; }
+.ai-head .ai-title { pointer-events: none; }
+.ai-scroll { padding-top: 64px; }
+
+/* photos sit outside the bubble, above it, like Claude */
+.ai-uimgs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.ai-uimgs img { width: 96px; height: 128px; object-fit: cover; border-radius: 14px; border: 1px solid var(--border); background: var(--bg2); cursor: zoom-in; display: block; }
+.ai-user { gap: 6px; }
+.ai-user .ai-acts { margin-top: -2px; }

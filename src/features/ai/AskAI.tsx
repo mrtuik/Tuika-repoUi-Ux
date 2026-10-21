@@ -118,16 +118,14 @@ function UserBubble({ m, busy, editing, onEdit, onPreview }: { m: Msg; busy: boo
   const [copied, setCopied] = useState(false)
   return (
     <div className={'ai-user' + (editing ? ' editing' : '')}>
-      <div className="ai-msg user">
-        {m.images && m.images.length > 0 && (
-          <div className="ai-imgs">
-            {m.images.map((u, i) => (
-              <img key={i} src={u} alt="Reference" onClick={() => onPreview(u)} />
-            ))}
-          </div>
-        )}
-        {m.text}
-      </div>
+      {m.images && m.images.length > 0 && (
+        <div className="ai-uimgs">
+          {m.images.map((u, i) => (
+            <img key={i} src={u} alt={`Attached image ${i + 1}`} onClick={() => onPreview(u)} />
+          ))}
+        </div>
+      )}
+      {m.text.trim() && <div className="ai-msg user">{m.text}</div>}
       <div className="ai-acts">
         <button
           className="ai-act"
